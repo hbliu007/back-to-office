@@ -144,7 +144,7 @@ int cmd_config() {
                   << "  mkdir -p ~/.bto\n"
                   << "  cat > ~/.bto/config.toml << 'EOF'\n"
                   << "  did = \"my-device\"\n"
-                  << "  relay = \"relay.bto.asia:9700\"\n"
+                  << "  relay = \"47.99.216.25:9700\"\n"
                   << "\n"
                   << "  [peers.office-213]\n"
                   << "    did = \"office-213\"\n"

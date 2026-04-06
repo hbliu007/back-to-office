@@ -199,7 +199,7 @@ void help_config() {
         "\n"
         "配置文件格式:\n"
         "  did = \"home-mac\"              # 本机 DID\n"
-        "  relay = \"relay.bto.asia:9700\"   # Relay 服务器\n"
+        "  relay = \"47.99.216.25:9700\"   # Relay 服务器\n"
         "\n"
         "  [peers.office-213]             # 设备配置\n"
         "    did = \"office-213\"\n"
