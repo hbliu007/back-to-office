@@ -1,84 +1,94 @@
 <div align="center">
 
 ```
-          _      _           _           _
-         | |    | |         | |         | |
- ___ ___ | | ___| |__  __ _| |_ ___  __| | _____      _____
-/ __/ _ \| |/ _ \  _ \/ _` | __/ _ \/ _` |/ _ \ \ /\ / / __|
-| (_| (_) | |  __/ |_) | (_| | ||  __/ (_| | (_) \ V  V /\__ \
- \___\___/|_|\___|_.__/ \__,_|\__\___|\__,_|\___/ \_/\_/ |___/
+╔══════════════════════════════════════════════════════════════════╗
+║                                                                  ║
+║   ☕  Coffee Shop MacBook                            ═══════    ║
+║                                                          ╔══╗   ║
+║   $ bto connect office-213                          [1]  ║▓▓║   ║
+║     ✓ P2P tunnel established                            ╚══╝   ║
+║     ✓ Forwarding localhost:2222 → office-213:22              ║
+║                                                               ║
+║   $ ssh -p 2222 dev@localhost                                ║
+║   dev@office-213:~$ claude                                    ║
+║                                                               ║
+║   ╭──────────────────────────────────────────────────╮        ║
+║   │                                                    │        ║
+║   │   Welcome to Claude Code!                          │        ║
+║   │                                                    │        ║
+║   │   Model:    claude-sonnet-4-6                      │        ║
+║   │   cwd:     /home/dev/projects/llm-inference        │        ║
+║   │   tools:   Read, Edit, Bash, Grep, Glob, ...       │        ║
+║   │                                                    │        ║
+║   │   Running on remote GPU machine 🚀                 │        ║
+║   │                                                    │        ║
+║   ╰──────────────────────────────────────────────────╯        ║
+║                                                                  ║
+║   ─── via relay.bto.asia ───────────── Office (behind NAT) ─── ║
+║                                          Corporate Firewall 🔒 ║
+║                                          $ bto daemon            ║
+║                                            ✓ Registered          ║
+║                                            ✓ Awaiting peers      ║
+║                                                                  ║
+╚══════════════════════════════════════════════════════════════════╝
 ```
 
-**SSH into your office machine from anywhere. One command. No VPN.**
+# BTO — Back To Office
 
-Perfect for **Claude Code** remote development -- connect to your office GPU machine and run AI coding agents from a coffee shop.
+**SSH into your office machine from anywhere. One command. No VPN. No public IP.**
 
-```
-$ bto connect office          $ ssh -p 2222 user@localhost
-  Connected via P2P tunnel      user@office:~$ claude
-  Listening on localhost:2222   > Claude Code on remote GPU machine
-```
+Connect to your office GPU rig from a coffee shop and run Claude Code, VS Code Remote, or any SSH workflow — through NAT, firewalls, and corporate networks.
 
 [![Release](https://img.shields.io/github/v/release/hbliu007/back-to-office?style=flat-square&logo=github)](https://github.com/hbliu007/back-to-office/releases/latest)
 [![C++20](https://img.shields.io/badge/C%2B%2B-20-blue?style=flat-square&logo=c%2B%2B)]()
 [![Binary ~1MB](https://img.shields.io/badge/Binary-~1MB-green?style=flat-square)]()
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow?style=flat-square)]()
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=flat-square)]()
 [![Stars](https://img.shields.io/github/stars/hbliu007/back-to-office?style=flat-square&logo=github)]()
 
-[Get Started](#get-started-in-30-seconds) · [Why BTO](#the-problem) · [Comparison](#how-it-compares) · [How It Works](#how-it-works)
+[Get Started](#get-started-in-30-seconds) · [How It Works](#how-it-works) · [Comparison](#how-it-compares) · [Mobile](#mobile--ssh-from-your-phone)
 
 </div>
 
 ---
 
-## Claude Code + BTO
+<p align="center">
+  <img src="docs/images/architecture.svg" alt="BTO Architecture — P2P SSH Tunneling via PeerLink" width="100%">
+</p>
 
-You use **Claude Code** at home. Your beefy GPU machine is at the office. BTO bridges them:
+## Why BTO
 
-```
-Home (MacBook)          Aliyun Relay           Office (GPU Machine)
-bto connect ──────────> relay.bto.asia ──────> bto daemon
-   │                        │                       │
-   │── ssh -p 2222 ─────────────────────────────────>│
-   │                                                │
-   │── claude (Claude Code on remote GPU) ───────────>│
-```
-
-No VPN. No public IP. No port forwarding. Just P2P magic.
-## The Problem
-
-You're at a coffee shop. You need to SSH into your office dev machine — the one with your GPU, your data, your environment. But it's behind a corporate firewall.
+You're at a coffee shop. Your beefy GPU machine — the one running your models, your data, your entire dev environment — sits behind a corporate firewall at the office.
 
 **Your options today:**
 
-- **VPN** — Ask IT, wait days, deal with split tunneling headaches
-- **FRP / Ngrok** — Set up a public server, configure port forwarding, manage tokens
-- **Tailscale** — Install on every device, depend on third-party DERP relay servers
+- **VPN** — File a ticket, wait days, deal with split tunneling and dropped connections
+- **FRP / Ngrok** — Rent a public server, configure port forwarding, manage access tokens
+- **Tailscale** — Install on every device, depend on third-party DERP relay servers, pay for teams
 
-You just want to type one command and get a shell. That's what BTO does.
+Or you could just type **one command**.
 
-## The Solution
-
+```console
+$ bto connect office-213
+  ✓ Connected via P2P tunnel
+  ✓ Forwarding localhost:2222 → office-213:22
 ```
-bto connect office-213
-```
 
-That's it. BTO creates a P2P tunnel through NAT and firewalls, gives you a local port, and you SSH through it. No VPN, no port forwarding, no firewall rules, no third-party dependencies.
+No VPN. No public server. No firewall rules. No third-party account.
 
 **~1,100 lines of C++. ~1 MB binary. One job, done well.**
 
-> [!IMPORTANT]
-> Similar to [bore](https://github.com/ekzhang/bore) and [frp](https://github.com/fatedier/frp), except BTO is built for one specific use case — **remote SSH access to office machines** — and does it with P2P tunnels instead of requiring a public relay server. That's all it does: no more, and no less.
+> [!TIP]
+> **Perfect for AI coding agents** — Use Claude Code, Cursor, or Copilot on your laptop while the heavy lifting runs on your office GPU. BTO gives you the SSH tunnel; the AI does the rest.
 
 ## Get Started in 30 Seconds
 
-### Install
+### 1. Install
 
 ```console
 $ curl -fsSL https://raw.githubusercontent.com/hbliu007/back-to-office/main/install.sh | bash
 ```
 
-### Office Machine <sub>(run once, keep alive)</sub>
+### 2. Office Machine <sub>(run once, keep alive)</sub>
 
 ```console
 $ bto daemon --did office-213 --relay relay.bto.asia:9700
@@ -86,44 +96,25 @@ $ bto daemon --did office-213 --relay relay.bto.asia:9700
   ✓ Listening for incoming connections
 ```
 
-### Your Laptop <sub>(from anywhere)</sub>
+### 3. Your Laptop <sub>(from anywhere)</sub>
 
 ```console
 $ bto connect office-213
   ✓ Connected via P2P tunnel
-  ✓ Listening on localhost:2222
+  ✓ Forwarding localhost:2222 → office-213:22
 
-$ ssh -p 2222 user@127.0.0.1
-user@office-213:~$   # You're in.
+$ ssh -p 2222 dev@127.0.0.1
+dev@office-213:~$   # You're in.
 ```
 
-> [!TIP]
-> **Fuzzy matching** — `bto 213` or `bto office` works too.
+That's it. Three steps. No config files, no firewall rules, no IT approval.
 
-## How It Compares
-
-| | BTO | FRP | Tailscale | SSH + VPN |
-|:--|:--:|:--:|:--:|:--:|
-| **Setup time** | **30 sec** | ~10 min | ~5 min | Hours |
-| **Public server required** | No | Yes | No | Yes |
-| **Port forwarding** | No | Yes | No | Yes |
-| **Self-hosted** | Fully | Fully | Partially | Fully |
-| **3rd-party dependency** | None | None | DERP servers | VPN provider |
-| **Binary size** | **~1 MB** | ~15 MB | ~50 MB | N/A |
-| **Memory usage** | **< 10 MB** | ~30 MB | ~100 MB | N/A |
-| **Mobile support** | Termux | No | App | App |
-| **One-line install** | Yes | Partial | Yes | No |
-
-**When to choose BTO over alternatives:**
-
-- You want **SSH access to office machines**, not a full mesh VPN
-- You want **zero infrastructure** — no public server, no cloud account, no IT approval
-- You want **minimal footprint** — a single ~1 MB binary with no dependencies
-- You want **full control** — self-host the relay, own your data
+> [!NOTE]
+> **Fuzzy matching** — `bto 213` or `bto office` works too. BTO finds the closest match.
 
 ## How It Works
 
-BTO is built on [PeerLink](https://github.com/hbliu007/peerlink), a P2P networking library. Each device registers a DID (Decentralized Identifier) with a lightweight relay. The relay helps devices discover each other and establish direct P2P tunnels — even behind NAT.
+BTO is built on [PeerLink](https://github.com/hbliu007/peerlink), a lightweight P2P networking library. Each device registers with a self-hosted relay using a DID (Decentralized Identifier). The relay brokers the handshake, then devices establish a **direct P2P tunnel** — even through NAT and firewalls.
 
 ```
 Your Laptop                  Relay Server               Office Machine
@@ -141,11 +132,32 @@ Your Laptop                  Relay Server               Office Machine
      │◄── SSH traffic (encrypted) ─────────────────────────────│
 ```
 
-The relay only brokers the initial handshake. Once the P2P tunnel is established, **all traffic flows directly between your devices** — the relay never sees your data.
+**The relay only brokers the handshake.** Once the P2P tunnel is established, all traffic flows directly between your devices. The relay never sees your data.
 
 <p align="center">
-  <img src="docs/images/connection-flow.svg" alt="Connection Flow" width="100%">
+  <img src="docs/images/connection-flow.svg" alt="Connection Flow Diagram" width="100%">
 </p>
+
+## How It Compares
+
+| | **BTO** | FRP | Tailscale | SSH + VPN |
+|:--|:--:|:--:|:--:|:--:|
+| **Setup time** | **30 sec** | ~10 min | ~5 min | Hours |
+| **Public server required** | No | Yes | No | Yes |
+| **Port forwarding** | No | Yes | No | Yes |
+| **Self-hosted** | Fully | Fully | Partially | Fully |
+| **3rd-party dependency** | None | None | DERP servers | VPN provider |
+| **Binary size** | **~1 MB** | ~15 MB | ~50 MB | N/A |
+| **Memory usage** | **< 10 MB** | ~30 MB | ~100 MB | N/A |
+| **Mobile support** | Termux | No | App | App |
+| **One-line install** | Yes | Partial | Yes | No |
+
+**Choose BTO when you want:**
+
+- **SSH access to office machines** — not a full mesh VPN
+- **Zero infrastructure** — no public server, no cloud account, no IT ticket
+- **Minimal footprint** — a single ~1 MB binary, no runtime dependencies
+- **Full control** — self-host the relay, own your data, audit the code
 
 ## Features
 
@@ -184,7 +196,7 @@ $ pkg install curl
 $ curl -fsSL https://raw.githubusercontent.com/hbliu007/back-to-office/main/install.sh | bash
 $ bto 213
   ✓ Connected to office-213
-  ✓ Listening on localhost:2222
+  ✓ Forwarding localhost:2222
 ```
 
 ## Configuration
