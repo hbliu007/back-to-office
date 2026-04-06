@@ -40,8 +40,8 @@ bto          # 等效（无参数默认）
 输出格式：
 ```
 已配置设备 (2 台):
-  office-213  user=lhb
-  office-215  user=lhb
+  office-213  user=user
+  office-215  user=user
 ```
 
 ### status — 显示配置状态
@@ -77,8 +77,8 @@ bto add <name> [--did <did>] [--user <user>] [--key <path>]
 
 示例：
 ```bash
-bto add office-213 --user lhb
-bto add 213 --did office-213 --user lhb --key ~/.ssh/id_ed25519
+bto add office-213 --user user
+bto add 213 --did office-213 --user user --key ~/.ssh/id_ed25519
 ```
 
 ### remove — 移除设备

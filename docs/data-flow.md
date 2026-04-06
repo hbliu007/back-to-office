@@ -11,7 +11,7 @@ main()
   │
   ├─ Config::load("~/.bto/config.toml")
   │
-  ├─ resolve_peer("office-213") → did="office-213", user="lhb"
+  ├─ resolve_peer("office-213") → did="office-213", user="user"
   │
   ├─ build_p2p_config(relay_host, relay_port)
   │    └─ RelayMode::RELAY_ONLY

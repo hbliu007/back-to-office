@@ -18,13 +18,13 @@ relay = "relay.bto.asia:9700"         # Relay 服务器地址
 # 设备配置（可多个）
 [peers.office-213]
   did = "office-213"                # 远端 DID（默认与 name 相同）
-  user = "lhb"                      # SSH 用户名（可选）
-  key = "/home/lhb/.ssh/id_ed25519" # SSH 私钥路径（可选）
+  user = "user"                      # SSH 用户名（可选）
+  key = "/home/user/.ssh/id_ed25519" # SSH 私钥路径（可选）
   port = 22                         # SSH 端口（可选，默认 22）
 
 [peers.office-215]
   did = "office-215"
-  user = "lhb"
+  user = "user"
 ```
 
 ## 字段说明

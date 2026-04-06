@@ -185,7 +185,7 @@ TEST(Commands, StatusWithConfig) {
     IsolatedHome env;
     env.write_config(R"(
 did = "my-laptop"
-relay = "47.99.216.25:9700"
+relay = "relay.bto.asia:9700"
 
 [peers.s1]
   did = "s1"
@@ -195,7 +195,7 @@ relay = "47.99.216.25:9700"
 
     EXPECT_EQ(r.exit_code, 0);
     EXPECT_NE(r.output.find("my-laptop"), std::string::npos);
-    EXPECT_NE(r.output.find("47.99.216.25:9700"), std::string::npos);
+    EXPECT_NE(r.output.find("relay.bto.asia:9700"), std::string::npos);
     EXPECT_NE(r.output.find("1"), std::string::npos);
 }
 

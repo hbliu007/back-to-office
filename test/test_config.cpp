@@ -77,21 +77,21 @@ TEST(ConfigLoad, BasicConfig) {
     TmpDir tmp;
     auto path = tmp.write("config.toml", R"(
 did = "home-mac"
-relay = "47.99.216.25:9700"
+relay = "relay.bto.asia:9700"
 
 [peers.office-213]
   did = "office-213"
-  user = "lhb"
+  user = "user"
 )");
 
     auto cfg = bto::config::Config::load(path);
     ASSERT_TRUE(cfg.has_value());
 
     EXPECT_EQ(cfg->did, "home-mac");
-    EXPECT_EQ(cfg->relay, "47.99.216.25:9700");
+    EXPECT_EQ(cfg->relay, "relay.bto.asia:9700");
     ASSERT_EQ(cfg->peers.size(), 1);
     EXPECT_EQ(cfg->peers.at("office-213").did, "office-213");
-    EXPECT_EQ(cfg->peers.at("office-213").user, "lhb");
+    EXPECT_EQ(cfg->peers.at("office-213").user, "user");
 }
 
 TEST(ConfigLoad, MultiplePeers) {
@@ -441,10 +441,10 @@ protected:
     void SetUp() override {
         bto::config::PeerConfig p;
 
-        p.did = "office-213"; p.user = "lhb";
+        p.did = "office-213"; p.user = "user";
         cfg_.peers["office-213"] = p;
 
-        p.did = "office-215"; p.user = "lhb";
+        p.did = "office-215"; p.user = "user";
         cfg_.peers["office-215"] = p;
 
         p.did = "home-macbook"; p.user = "me";
@@ -531,9 +531,9 @@ TEST_F(ResolvePeerTest, EmptyPeers) {
 
 TEST(RelayParsing, HostAndPort) {
     bto::config::Config cfg;
-    cfg.relay = "47.99.216.25:9700";
+    cfg.relay = "relay.bto.asia:9700";
 
-    EXPECT_EQ(cfg.relay_host(), "47.99.216.25");
+    EXPECT_EQ(cfg.relay_host(), "relay.bto.asia");
     EXPECT_EQ(cfg.relay_port(), 9700);
 }
 

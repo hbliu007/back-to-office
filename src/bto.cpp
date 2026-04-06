@@ -165,7 +165,7 @@ int cmd_add(const bto::cli::Command& cmd, bto::config::Config& config) {
     if (cmd.target.empty()) {
         std::cerr << "错误: 请指定设备名称\n"
                   << "用法: bto add <name> [--did <did>] [--user <user>] [--key <path>]\n"
-                  << "示例: bto add office-213 --user lhb\n";
+                  << "示例: bto add office-213 --user user\n";
         return EC::USAGE;
     }
     auto did = cmd.did.empty() ? cmd.target : cmd.did;

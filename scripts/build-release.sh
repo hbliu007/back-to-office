@@ -65,7 +65,9 @@ build_native() {
     cd "$PROJECT_ROOT"
     cmake -B build-release \
         -DCMAKE_BUILD_TYPE=Release \
-        -DBTO_BUILD_TESTS=OFF
+        -DBTO_BUILD_TESTS=OFF \
+        -DCMAKE_C_COMPILER=/usr/bin/cc \
+        -DCMAKE_CXX_COMPILER=/usr/bin/c++
     cmake --build build-release -j"$(getconf _NPROCESSORS_ONLN 2>/dev/null || echo 4)"
 
     local filename="bto-${VERSION}-${platform}.tar.gz"
@@ -166,8 +168,8 @@ main() {
     # 构建当前平台
     build_native
 
-    # 可选: Docker 交叉编译
-    if [[ "$(uname -s)" == "Darwin" ]] && command -v docker &>/dev/null; then
+    # 可选: Docker 交叉编译（--local 模式跳过交互）
+    if [[ "$LOCAL_ONLY" == "false" ]] && [[ "$(uname -s)" == "Darwin" ]] && command -v docker &>/dev/null; then
         echo ""
         info "检测到 Docker，是否交叉编译 Linux 版本？"
         read -rp "  构建 linux-x86_64? [y/N] " yn
