@@ -1,31 +1,50 @@
-<p align="center">
-  <img src="docs/images/architecture.svg" alt="BTO — Back To Office" width="100%">
-</p>
+<div align="center">
 
-<h1 align="center">BTO (Back-To-Office)</h1>
+```
+          _      _           _           _
+         | |    | |         | |         | |
+ ___ ___ | | ___| |__  __ _| |_ ___  __| | _____      _____
+/ __/ _ \| |/ _ \  _ \/ _` | __/ _ \/ _` |/ _ \ \ /\ / / __|
+| (_| (_) | |  __/ |_) | (_| | ||  __/ (_| | (_) \ V  V /\__ \
+ \___\___/|_|\___|_.__/ \__,_|\__\___|\__,_|\___/ \_/\_/ |___/
+```
 
-<p align="center">
-  <strong>SSH into your office machine from anywhere. One command. No VPN.</strong>
-</p>
+**SSH into your office machine from anywhere. One command. No VPN.**
 
-<p align="center">
-  <a href="https://github.com/hbliu007/back-to-office/releases/latest">
-    <img src="https://img.shields.io/github/v/release/hbliu007/back-to-office?style=flat-square&logo=github&label=Release" alt="Release">
-  </a>
-  <img src="https://img.shields.io/badge/C%2B%2B-20-blue?style=flat-square&logo=c%2B%2B" alt="C++20">
-  <img src="https://img.shields.io/badge/Binary-~1MB-green?style=flat-square" alt="~1MB">
-  <img src="https://img.shields.io/badge/License-MIT-yellow?style=flat-square" alt="License: MIT">
-  <a href="https://github.com/hbliu007/back-to-office/stargazers">
-    <img src="https://img.shields.io/github/stars/hbliu007/back-to-office?style=flat-square&logo=github" alt="Stars">
-  </a>
-</p>
+Perfect for **Claude Code** remote development -- connect to your office GPU machine and run AI coding agents from a coffee shop.
 
-<p align="center">
-  <a href="#-get-started-in-30-seconds">Get Started</a> · <a href="#-the-problem">Why BTO</a> · <a href="#-how-it-compares">Comparison</a> · <a href="#-how-it-works">How It Works</a> · <a href="docs/">Docs</a>
-</p>
+```
+$ bto connect office          $ ssh -p 2222 user@localhost
+  Connected via P2P tunnel      user@office:~$ claude
+  Listening on localhost:2222   > Claude Code on remote GPU machine
+```
+
+[![Release](https://img.shields.io/github/v/release/hbliu007/back-to-office?style=flat-square&logo=github)](https://github.com/hbliu007/back-to-office/releases/latest)
+[![C++20](https://img.shields.io/badge/C%2B%2B-20-blue?style=flat-square&logo=c%2B%2B)]()
+[![Binary ~1MB](https://img.shields.io/badge/Binary-~1MB-green?style=flat-square)]()
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow?style=flat-square)]()
+[![Stars](https://img.shields.io/github/stars/hbliu007/back-to-office?style=flat-square&logo=github)]()
+
+[Get Started](#get-started-in-30-seconds) · [Why BTO](#the-problem) · [Comparison](#how-it-compares) · [How It Works](#how-it-works)
+
+</div>
 
 ---
 
+## Claude Code + BTO
+
+You use **Claude Code** at home. Your beefy GPU machine is at the office. BTO bridges them:
+
+```
+Home (MacBook)          Aliyun Relay           Office (GPU Machine)
+bto connect ──────────> relay.bto.asia ──────> bto daemon
+   │                        │                       │
+   │── ssh -p 2222 ─────────────────────────────────>│
+   │                                                │
+   │── claude (Claude Code on remote GPU) ───────────>│
+```
+
+No VPN. No public IP. No port forwarding. Just P2P magic.
 ## The Problem
 
 You're at a coffee shop. You need to SSH into your office dev machine — the one with your GPU, your data, your environment. But it's behind a corporate firewall.
