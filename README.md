@@ -1,53 +1,47 @@
 <div align="center">
 
+```console
+ ☕ Coffee Shop MacBook
+
+ $ bto connect office-213
+   ✓ Connected via P2P tunnel
+   ✓ Forwarding localhost:2222 → office-213:22
+
+ $ ssh -p 2222 dev@localhost
+
+ dev@office-213:~$ claude
+
+ ▗ ▗   ▖ ▖  Claude Code v2.1.92
+            Opus 4.6 · API Usage Billing
+   ▘▘ ▝▝    /home/dev/projects/llm-inference
+   ⎿  Connected via BTO P2P tunnel (office-213)
+      ───────────────────────────────────────────
+      >_
 ```
-╔══════════════════════════════════════════════════════════════════╗
-║                                                                  ║
-║   ☕  Coffee Shop MacBook                            ═══════    ║
-║                                                          ╔══╗   ║
-║   $ bto connect office-213                          [1]  ║▓▓║   ║
-║     ✓ P2P tunnel established                            ╚══╝   ║
-║     ✓ Forwarding localhost:2222 → office-213:22              ║
-║                                                               ║
-║   $ ssh -p 2222 dev@localhost                                ║
-║   dev@office-213:~$ claude                                    ║
-║                                                               ║
-║   ╭──────────────────────────────────────────────────╮        ║
-║   │                                                    │        ║
-║   │   Welcome to Claude Code!                          │        ║
-║   │                                                    │        ║
-║   │   Model:    claude-sonnet-4-6                      │        ║
-║   │   cwd:     /home/dev/projects/llm-inference        │        ║
-║   │   tools:   Read, Edit, Bash, Grep, Glob, ...       │        ║
-║   │                                                    │        ║
-║   │   Running on remote GPU machine 🚀                 │        ║
-║   │                                                    │        ║
-║   ╰──────────────────────────────────────────────────╯        ║
-║                                                                  ║
-║   ─── via relay.bto.asia ───────────── Office (behind NAT) ─── ║
-║                                          Corporate Firewall 🔒 ║
-║                                          $ bto daemon            ║
-║                                            ✓ Registered          ║
-║                                            ✓ Awaiting peers      ║
-║                                                                  ║
-╚══════════════════════════════════════════════════════════════════╝
-```
-
-# BTO — Back To Office
-
-**SSH into your office machine from anywhere. One command. No VPN. No public IP.**
-
-Connect to your office GPU rig from a coffee shop and run Claude Code, VS Code Remote, or any SSH workflow — through NAT, firewalls, and corporate networks.
-
-[![Release](https://img.shields.io/github/v/release/hbliu007/back-to-office?style=flat-square&logo=github)](https://github.com/hbliu007/back-to-office/releases/latest)
-[![C++20](https://img.shields.io/badge/C%2B%2B-20-blue?style=flat-square&logo=c%2B%2B)]()
-[![Binary ~1MB](https://img.shields.io/badge/Binary-~1MB-green?style=flat-square)]()
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=flat-square)]()
-[![Stars](https://img.shields.io/github/stars/hbliu007/back-to-office?style=flat-square&logo=github)]()
-
-[Get Started](#get-started-in-30-seconds) · [How It Works](#how-it-works) · [Comparison](#how-it-compares) · [Mobile](#mobile--ssh-from-your-phone)
 
 </div>
+
+<h1 align="center">BTO — Back To Office</h1>
+
+<p align="center">
+<strong>SSH into your office machine from anywhere. One command. No VPN. No public IP.</strong>
+</p>
+
+<p align="center">
+Connect to your office GPU rig from a coffee shop and run <strong>Claude Code</strong>, VS Code Remote, or any SSH workflow — through NAT, firewalls, and corporate networks.
+</p>
+
+<p align="center">
+<a href="https://github.com/hbliu007/back-to-office/releases/latest"><img src="https://img.shields.io/github/v/release/hbliu007/back-to-office?style=flat-square&logo=github" alt="Release"></a>
+<a href="#"><img src="https://img.shields.io/badge/C%2B%2B-20-blue?style=flat-square&logo=c%2B%2B" alt="C++20"></a>
+<a href="#"><img src="https://img.shields.io/badge/Binary-~1MB-green?style=flat-square" alt="~1MB"></a>
+<a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-yellow.svg?style=flat-square" alt="MIT"></a>
+<a href="https://github.com/hbliu007/back-to-office/stargazers"><img src="https://img.shields.io/github/stars/hbliu007/back-to-office?style=flat-square&logo=github" alt="Stars"></a>
+</p>
+
+<p align="center">
+<a href="#get-started-in-30-seconds">Get Started</a> · <a href="#how-it-works">How It Works</a> · <a href="#how-it-compares">Comparison</a> · <a href="#mobile--ssh-from-your-phone">Mobile</a>
+</p>
 
 ---
 
