@@ -5,7 +5,7 @@
 <h1 align="center">BTO (Back-To-Office)</h1>
 
 <p align="center">
-  <strong>One command to SSH into your office from anywhere — zero VPN, self-hosted relay, mobile ready.</strong>
+  <strong>SSH into your office machine from anywhere. One command. No VPN.</strong>
 </p>
 
 <p align="center">
@@ -13,171 +13,164 @@
     <img src="https://img.shields.io/github/v/release/hbliu007/back-to-office?style=flat-square&logo=github&label=Release" alt="Release">
   </a>
   <img src="https://img.shields.io/badge/C%2B%2B-20-blue?style=flat-square&logo=c%2B%2B" alt="C++20">
-  <img src="https://img.shields.io/badge/Coverage-85.5%25-brightgreen?style=flat-square" alt="Coverage">
+  <img src="https://img.shields.io/badge/Binary-~1MB-green?style=flat-square" alt="~1MB">
   <img src="https://img.shields.io/badge/License-MIT-yellow?style=flat-square" alt="License: MIT">
   <a href="https://github.com/hbliu007/back-to-office/stargazers">
     <img src="https://img.shields.io/github/stars/hbliu007/back-to-office?style=flat-square&logo=github" alt="Stars">
   </a>
-  <a href="https://github.com/hbliu007/back-to-office/issues">
-    <img src="https://img.shields.io/github/issues/hbliu007/back-to-office?style=flat-square" alt="Issues">
-  </a>
 </p>
 
 <p align="center">
-  <a href="#-quick-start">Quick Start</a> · <a href="#-how-it-works">How It Works</a> · <a href="#-comparison">Comparison</a> · <a href="docs/">Docs</a> · <a href="#-build-from-source">Build</a>
+  <a href="#-get-started-in-30-seconds">Get Started</a> · <a href="#-the-problem">Why BTO</a> · <a href="#-how-it-compares">Comparison</a> · <a href="#-how-it-works">How It Works</a> · <a href="docs/">Docs</a>
 </p>
 
 ---
 
-## Why BTO?
+## The Problem
 
-You're at a coffee shop. You need to SSH into your office dev machine behind a corporate firewall.
-VPN is complex, FRP needs port forwarding, and Tailscale depends on third-party DERP servers.
+You're at a coffee shop. You need to SSH into your office dev machine — the one with your GPU, your data, your environment. But it's behind a corporate firewall.
 
-**BTO gives you a simpler way**: one binary, one command, P2P tunnel — built on [PeerLink](https://github.com/hbliu007/peerlink).
+**Your options today:**
+
+- **VPN** — Ask IT, wait days, deal with split tunneling headaches
+- **FRP / Ngrok** — Set up a public server, configure port forwarding, manage tokens
+- **Tailscale** — Install on every device, depend on third-party DERP relay servers
+
+You just want to type one command and get a shell. That's what BTO does.
+
+## The Solution
+
+```
+bto connect office-213
+```
+
+That's it. BTO creates a P2P tunnel through NAT and firewalls, gives you a local port, and you SSH through it. No VPN, no port forwarding, no firewall rules, no third-party dependencies.
+
+**~1,100 lines of C++. ~1 MB binary. One job, done well.**
 
 > [!IMPORTANT]
-> **一条命令，从任何地方 SSH 回办公室** — 无需 VPN、无需端口转发、无需防火墙规则。支持 Linux / macOS / Android (Termux)。
+> Similar to [bore](https://github.com/ekzhang/bore) and [frp](https://github.com/fatedier/frp), except BTO is built for one specific use case — **remote SSH access to office machines** — and does it with P2P tunnels instead of requiring a public relay server. That's all it does: no more, and no less.
 
-## 🚀 Quick Start
+## Get Started in 30 Seconds
 
-### 1. Install (10 seconds)
+### Install
 
 ```console
 $ curl -fsSL https://raw.githubusercontent.com/hbliu007/back-to-office/main/install.sh | bash
-  ✓ Detected: darwin arm64
-  ✓ Downloaded: bto-v1.1.0-darwin-arm64.tar.gz
-  ✓ SHA256 verified
-  ✓ Installed to ~/.local/bin/bto
 ```
 
-### 2. Office Machine (run once, keep alive)
+### Office Machine <sub>(run once, keep alive)</sub>
 
 ```console
 $ bto daemon --did office-213 --relay relay.bto.asia:9700
   ✓ Registered as office-213
   ✓ Listening for incoming connections
-  ✓ Forwarding to localhost:22
 ```
 
-### 3. Your Laptop (from anywhere)
+### Your Laptop <sub>(from anywhere)</sub>
 
 ```console
 $ bto connect office-213
-  ✓ Connected to office-213 via relay
+  ✓ Connected via P2P tunnel
   ✓ Listening on localhost:2222
 
 $ ssh -p 2222 user@127.0.0.1
-user@office-213:~$
+user@office-213:~$   # You're in.
 ```
 
-That's it. No VPN, no port forwarding, no firewall rules.
-
 > [!TIP]
-> **Fuzzy matching**: `bto 213` or `bto office` automatically matches `office-213`.
+> **Fuzzy matching** — `bto 213` or `bto office` works too.
 
-## ⚡ Features
+## How It Compares
 
-| | | |
-|:---|:---|:---|
-| **Zero Configuration** | **Cross Platform** | **Secure** |
-| Single binary, no dependencies | Linux, macOS, Android (Termux) | DID identity + relay encryption |
-| One-line install via `curl\|sh` | x86_64 and ARM64 | No credential exposure |
-| Fuzzy peer name matching | Mobile SSH from phone | Self-hosted relay option |
+| | BTO | FRP | Tailscale | SSH + VPN |
+|:--|:--:|:--:|:--:|:--:|
+| **Setup time** | **30 sec** | ~10 min | ~5 min | Hours |
+| **Public server required** | No | Yes | No | Yes |
+| **Port forwarding** | No | Yes | No | Yes |
+| **Self-hosted** | Fully | Fully | Partially | Fully |
+| **3rd-party dependency** | None | None | DERP servers | VPN provider |
+| **Binary size** | **~1 MB** | ~15 MB | ~50 MB | N/A |
+| **Memory usage** | **< 10 MB** | ~30 MB | ~100 MB | N/A |
+| **Mobile support** | Termux | No | App | App |
+| **One-line install** | Yes | Partial | Yes | No |
 
-### Platform Support
+**When to choose BTO over alternatives:**
 
-| Platform | Architecture | Status |
-|:---------|:------------|:------:|
-| Linux | x86_64, ARM64 | ✅ Stable |
-| macOS | Apple Silicon (M1+), Intel | ✅ Stable |
-| Android | Termux (ARM64) | ✅ Stable |
-| Windows | WSL2 | 🔄 Planned |
+- You want **SSH access to office machines**, not a full mesh VPN
+- You want **zero infrastructure** — no public server, no cloud account, no IT approval
+- You want **minimal footprint** — a single ~1 MB binary with no dependencies
+- You want **full control** — self-host the relay, own your data
 
-## 🔍 How It Works
+## How It Works
 
-BTO builds on [PeerLink P2P](https://github.com/hbliu007/peerlink). Each device registers a DID (Decentralized Identifier) with a relay server. Devices find each other through the relay and establish P2P tunnels — even behind NAT.
+BTO is built on [PeerLink](https://github.com/hbliu007/peerlink), a P2P networking library. Each device registers a DID (Decentralized Identifier) with a lightweight relay. The relay helps devices discover each other and establish direct P2P tunnels — even behind NAT.
+
+```
+Your Laptop                  Relay Server               Office Machine
+(bto connect)             (relay.bto.asia:9700)          (bto daemon)
+     │                            │                           │
+     │── REGISTER home-001 ──────►│                           │
+     │◄── OK ────────────────────│                           │
+     │                            │                           │
+     │── CONNECT office-213 ────►│                           │
+     │                            │── INCOMING home-001 ────►│
+     │                            │                           │
+     │◄═══════════ P2P Tunnel Established ══════════════════►│
+     │                            │                           │
+     │── SSH traffic (encrypted) ─────────────────────────────►│
+     │◄── SSH traffic (encrypted) ─────────────────────────────│
+```
+
+The relay only brokers the initial handshake. Once the P2P tunnel is established, **all traffic flows directly between your devices** — the relay never sees your data.
 
 <p align="center">
   <img src="docs/images/connection-flow.svg" alt="Connection Flow" width="100%">
 </p>
 
-### Connection Sequence
+## Features
 
-```
-bto connect office-213
-  → Register local DID with relay
-  → Look up office-213 via relay
-  → Establish P2P tunnel (relay-assisted)
-  → Listen on local port 2222
-  → Forward SSH traffic through the tunnel
-```
+| | | |
+|:--|:--|:--|
+| **Zero Configuration** | **Cross-Platform** | **Secure by Design** |
+| Single binary, no dependencies | Linux (x86_64, ARM64) | DID-based identity |
+| One-line install via `curl \| sh` | macOS (Apple Silicon, Intel) | Relay-assisted encryption |
+| Fuzzy peer name matching | Android (Termux) | No credentials stored on relay |
+| TOML config, human-readable | Windows (WSL2, planned) | Self-hosted relay option |
 
-<details>
-<summary><strong>📖 Detailed Data Flow</strong></summary>
-
-```
-Your Laptop                    Relay Server               Office Machine
-(bto connect)               (relay.bto.asia:9700)         (bto daemon)
-     │                              │                          │
-     │──── REGISTER home-001 ──────►│                          │
-     │◄─── OK ─────────────────────│                          │
-     │                              │                          │
-     │──── CONNECT office-213 ────►│                          │
-     │                              │──── INCOMING home-001 ──►│
-     │                              │                          │
-     │◄════════ P2P Tunnel Established ═══════════════════════►│
-     │                              │                          │
-     │──── SSH Handshake ──────────────────────────────────────►│
-     │◄─── SSH Response ───────────────────────────────────────│
-     │──── Encrypted Data ─────────────────────────────────────►│
-     │◄─── Encrypted Data ─────────────────────────────────────│
-```
-
-</details>
-
-## 🆚 Comparison
-
-| Feature | BTO | SSH + VPN | FRP | Tailscale |
-|:--------|:---:|:---------:|:---:|:---------:|
-| One-Line Install | ✅ | ❌ | ⚠️ | ✅ |
-| Zero Port Forwarding | ✅ | ❌ | ❌ | ✅ |
-| Self-Hosted | ✅ Full | ✅ | ✅ | ⚠️ Headscale |
-| No 3rd-Party Dependency | ✅ | ✅ | ✅ | ❌ DERP |
-| Mobile Support | ✅ Termux | ⚠️ | ❌ | ✅ |
-| Setup Complexity | **~30 sec** | Hours | ~10 min | ~5 min |
-| Binary Size | **~1 MB** | N/A | ~15 MB | ~50 MB |
-| Memory Usage | **< 10 MB** | N/A | ~30 MB | ~100 MB |
-
-## 📋 Usage
+## Usage
 
 ```bash
-bto <peer>                    # Connect (shortcut, fuzzy match)
-bto connect <peer>            # Connect to a remote device
-bto daemon --did <name>       # Run as daemon (accept incoming)
-bto list                      # List configured devices
-bto add <name> [--did <d>]    # Add a device
-bto remove <name>             # Remove a device
-bto status                    # Show connection status
-bto config                    # Show configuration
-bto ping                      # Test relay connectivity
+# Connect (the main thing you'll do)
+bto office-213              # Fuzzy match — "bto 213" works too
+bto connect office-213      # Explicit connect
+
+# Daemon (run on the office machine)
+bto daemon --did office-213 --relay relay.bto.asia:9700
+
+# Device management
+bto list                    # List configured peers
+bto add office-215          # Add a peer
+bto remove office-215       # Remove a peer
+bto status                  # Connection status
+bto ping                    # Test relay connectivity
 ```
 
-### Multi-Session
+## Mobile — SSH from Your Phone
 
-Every connection creates an independent P2P tunnel:
+BTO runs on Android via [Termux](https://termux.dev). SSH into your office from your phone:
 
-```bash
-# Terminal 1
-ssh -p 2222 user@127.0.0.1
-
-# Terminal 2 (concurrent, independent tunnel)
-ssh -p 2222 user@127.0.0.1
+```console
+$ pkg install curl
+$ curl -fsSL https://raw.githubusercontent.com/hbliu007/back-to-office/main/install.sh | bash
+$ bto 213
+  ✓ Connected to office-213
+  ✓ Listening on localhost:2222
 ```
 
-## ⚙️ Configuration
+## Configuration
 
-Config file: `~/.bto/config.toml`
+`~/.bto/config.toml` — simple, human-readable:
 
 ```toml
 did = "home-mac"
@@ -190,24 +183,13 @@ relay = "relay.bto.asia:9700"
   did = "office-215"
 ```
 
-## 📱 Mobile (Termux)
+## Build from Source
 
-BTO works on Android via Termux — SSH into your office from your phone:
-
-```console
-$ pkg install curl
-$ curl -fsSL https://raw.githubusercontent.com/hbliu007/back-to-office/main/install.sh | bash
-$ bto 213
-  ✓ Connected to office-213
-  ✓ Listening on localhost:2222
-```
-
-## 🔧 Build from Source
-
-Requirements: C++20 compiler, CMake 3.20+, Boost, spdlog, fmt, protobuf
+<details>
+<summary><strong>Requirements: C++20, CMake 3.20+, Boost, spdlog, fmt, protobuf</strong></summary>
 
 ```bash
-# Build PeerLink P2P libraries first
+# Build PeerLink first
 cd p2p-cpp
 cmake -B build -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=OFF
 cmake --build build -j$(nproc)
@@ -221,11 +203,9 @@ cmake --build build -j$(nproc)
 sudo cp build/bto /usr/local/bin/
 ```
 
-<details>
-<summary><strong>🐳 Cross-compile with Docker</strong></summary>
+**Docker cross-compile (Linux x86_64 on macOS):**
 
 ```bash
-# Build for Linux x86_64 on macOS
 docker run --rm --platform linux/amd64 \
   -v "$PWD":/workspace -w /workspace \
   ubuntu:22.04 bash -c '
@@ -238,43 +218,27 @@ docker run --rm --platform linux/amd64 \
 
 </details>
 
-## 🏗️ Architecture
-
-```
-back-to-office/
-├── src/
-│   ├── bto.cpp              # Main entry, command dispatcher
-│   ├── p2p_bridge.hpp/cpp   # PeerLink P2P client wrapper
-│   ├── tcp_bridge.hpp/cpp   # TCP ↔ P2P bidirectional bridge
-│   ├── cli/parser.hpp/cpp   # CLI argument parser
-│   └── config/config.hpp/cpp # TOML config manager
-├── test/                     # 116 tests, 85.5% coverage
-├── docs/                     # CLI & config reference
-├── scripts/                  # Build & release scripts
-└── install.sh                # One-line installer
-```
+## Project Stats
 
 | Metric | Value |
-|:-------|:-----:|
-| Lines of Code | **~1,100** |
-| Test Count | **116** |
-| Test Coverage | **85.5%** |
-| Binary Size | **~1 MB** |
-| Dependencies | PeerLink P2P only |
+|:--|:--|
+| Lines of Code | ~1,100 |
+| Test Count | 116 |
+| Test Coverage | 85.5% |
+| Binary Size | ~1 MB |
+| Dependencies | [PeerLink](https://github.com/hbliu007/peerlink) only |
 
-## 🔗 Related Projects
+## Related
 
-| Project | Description |
-|:--------|:------------|
-| [PeerLink](https://github.com/hbliu007/peerlink) | P2P Secure Access Platform (BTO's foundation) |
-| [PeerLink Relay](https://github.com/hbliu007/peerlink) | Relay server for NAT traversal |
+- [PeerLink](https://github.com/hbliu007/peerlink) — The P2P networking library that powers BTO
+- [awesome-tunneling](https://github.com/anderspitman/awesome-tunneling) — A curated list of tunneling solutions
 
-## 📄 License
+## License
 
-[MIT License](LICENSE) — Free for personal and commercial use.
+[MIT](LICENSE) — free for personal and commercial use.
 
 ---
 
 <p align="center">
-  <a href="https://github.com/hbliu007/back-to-office"><strong>GitHub</strong></a> · <a href="https://github.com/hbliu007/back-to-office/issues">Issues</a> · <a href="https://github.com/hbliu007/peerlink">PeerLink</a>
+  <sub>Built with frustration from coffee-shop SSH sessions that never worked.</sub>
 </p>
