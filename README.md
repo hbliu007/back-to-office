@@ -1,23 +1,6 @@
 <div align="center">
 
-```console
- ☕ Coffee Shop MacBook
-
- $ bto connect office-213
-   ✓ Connected via P2P tunnel
-   ✓ Forwarding localhost:2222 → office-213:22
-
- $ ssh -p 2222 dev@localhost
-
- dev@office-213:~$ claude
-
- ▗ ▗   ▖ ▖  Claude Code v2.1.92
-            Opus 4.6 · API Usage Billing
-   ▘▘ ▝▝    /home/dev/projects/llm-inference
-   ⎿  Connected via BTO P2P tunnel (office-213)
-      ───────────────────────────────────────────
-      >_
-```
+<img src="docs/images/claude-code-startup.png" alt="Claude Code running on office machine via BTO P2P tunnel" width="100%">
 
 </div>
 
