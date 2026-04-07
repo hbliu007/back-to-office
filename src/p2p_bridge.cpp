@@ -155,11 +155,11 @@ void TunnelSession::read_tcp() {
                         std::cerr << "[bto] #" << self->id_
                                   << " P2P 发送错误: " << ec.message() << std::endl;
                         self->close();
-                        return;
                     }
-                    // 背压控制：P2P 发送完成后才读下一块 TCP 数据
-                    self->read_tcp();
                 });
+            // Fire-and-forget: 立即继续读 TCP，不等 P2P send 回调
+            // SSH 握手需要快速来回交互，backpressure 会导致超时
+            self->read_tcp();
         });
 }
 
@@ -248,6 +248,18 @@ void ConnectBridge::do_accept() {
         std::cout << "[bto] SSH 连入 #" << id << " ("
                   << socket.remote_endpoint().address().to_string() << ":"
                   << socket.remote_endpoint().port() << ")" << std::endl;
+
+        // Set TCP keepalive on accepted local connection
+        socket.set_option(boost::asio::socket_base::keep_alive(true));
+#ifdef __linux__
+        int idle = 60, interval = 10, count = 3;
+        ::setsockopt(socket.native_handle(), IPPROTO_TCP, TCP_KEEPIDLE, &idle, sizeof(idle));
+        ::setsockopt(socket.native_handle(), IPPROTO_TCP, TCP_KEEPINTVL, &interval, sizeof(interval));
+        ::setsockopt(socket.native_handle(), IPPROTO_TCP, TCP_KEEPCNT, &count, sizeof(count));
+#elif defined(__APPLE__)
+        int idle = 60;
+        ::setsockopt(socket.native_handle(), IPPROTO_TCP, TCP_KEEPALIVE, &idle, sizeof(idle));
+#endif
 
         auto tcp_sock = std::make_shared<boost::asio::ip::tcp::socket>(std::move(socket));
         auto session = std::make_shared<TunnelSession>(

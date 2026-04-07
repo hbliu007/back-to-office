@@ -8,13 +8,17 @@
 
 #include "cli/parser.hpp"
 #include "config/config.hpp"
-#include "p2p_bridge.hpp"
+#include "p2p_bridge_v2.hpp"
 
 #include <iostream>
 #include <fstream>
 #include <filesystem>
 #include <csignal>
 #include <atomic>
+#include <thread>
+#include <unistd.h>
+#include <fcntl.h>
+#include <sys/wait.h>
 
 namespace {
 
@@ -100,6 +104,64 @@ int cmd_connect(const bto::cli::Command& cmd, bto::config::Config& config) {
     if (!bridge->start()) {
         return EC::NETWORK;
     }
+
+    // 自动启动 SSH — P2P 连接就绪后 fork ssh 进程
+    auto ssh_user = resolved ? resolved->second.user : std::string("lhb");
+    auto ssh_key = resolved ? resolved->second.key : std::string();
+    auto listen_port = cmd.listen_port;
+
+    bridge->on_ready([&ioc, ssh_user, ssh_key, listen_port]() {
+        // P2P 已连接，重定向 stdout/stderr 到 /dev/null 避免日志污染 SSH
+        int devnull = open("/dev/null", O_WRONLY);
+        if (devnull >= 0) {
+            dup2(devnull, STDOUT_FILENO);
+            dup2(devnull, STDERR_FILENO);
+            close(devnull);
+        }
+
+        // 直接 fork SSH（只 fork 一次）
+        pid_t pid = fork();
+        if (pid == 0) {
+            // 子进程：恢复 stdout/stderr 给 SSH 使用
+            int tty = open("/dev/tty", O_RDWR);
+            if (tty >= 0) {
+                dup2(tty, STDIN_FILENO);
+                dup2(tty, STDOUT_FILENO);
+                dup2(tty, STDERR_FILENO);
+                close(tty);
+            }
+
+            std::vector<const char*> argv;
+            argv.push_back("ssh");
+            argv.push_back("-o"); argv.push_back("StrictHostKeyChecking=no");
+            argv.push_back("-o"); argv.push_back("UserKnownHostsFile=/dev/null");
+            argv.push_back("-o"); argv.push_back("LogLevel=ERROR");
+
+            std::string port_str = std::to_string(listen_port);
+            argv.push_back("-p"); argv.push_back(port_str.c_str());
+
+            if (!ssh_key.empty()) {
+                argv.push_back("-i"); argv.push_back(ssh_key.c_str());
+            }
+
+            std::string target = ssh_user + "@127.0.0.1";
+            argv.push_back(target.c_str());
+            argv.push_back(nullptr);
+
+            execvp("ssh", const_cast<char* const*>(argv.data()));
+            _exit(127);
+        } else if (pid > 0) {
+            // 父进程：在新线程中等待 SSH 退出
+            std::thread([&ioc, pid]() {
+                int status = 0;
+                waitpid(pid, &status, 0);
+                ioc.stop();
+            }).detach();
+        } else {
+            ioc.stop();
+        }
+    });
+
     ioc.run();
 
     g_ioc.store(nullptr, std::memory_order_release);

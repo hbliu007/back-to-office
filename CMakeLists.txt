@@ -42,6 +42,14 @@ link_directories(
 
 add_executable(bto
     src/bto.cpp
+    src/p2p_bridge_v2.cpp
+    src/cli/parser.cpp
+    src/config/config.cpp
+)
+
+# 保留旧版本用于对比测试
+add_executable(bto_v1
+    src/bto.cpp
     src/p2p_bridge.cpp
     src/cli/parser.cpp
     src/config/config.cpp
@@ -64,7 +72,24 @@ target_link_libraries(bto
     protobuf::libprotobuf
 )
 
-install(TARGETS bto RUNTIME DESTINATION bin)
+target_link_libraries(bto_v1
+    p2p_core
+    p2p_transport
+    p2p_nat
+    p2p_protocol
+    p2p_net
+    p2p_utils
+    p2p_security
+    p2p-crypto
+    p2p-proto
+    Boost::headers
+    Threads::Threads
+    spdlog::spdlog
+    fmt::fmt
+    protobuf::libprotobuf
+)
+
+install(TARGETS bto bto_v1 RUNTIME DESTINATION bin)
 
 # ─── 测试 ───────────────────────────────────────────────────────
 option(BTO_BUILD_TESTS "构建单元测试" ON)
@@ -91,7 +116,6 @@ if(BTO_BUILD_TESTS)
     target_link_libraries(bto_tests
         bto_testable
         GTest::gtest
-        GTest::gmock
     )
     # 让集成测试知道 bto 二进制路径
     target_compile_definitions(bto_tests PRIVATE
