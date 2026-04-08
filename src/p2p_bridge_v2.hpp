@@ -91,6 +91,11 @@ private:
  */
 class ConnectBridge : public std::enable_shared_from_this<ConnectBridge> {
 public:
+    using ReadyCallback = std::function<void()>;
+    using FailedCallback = std::function<void(const std::string&)>;
+    using StoppedCallback = std::function<void()>;
+    using SessionCountCallback = std::function<void(std::size_t)>;
+
     ConnectBridge(boost::asio::io_context& ioc,
                   const std::string& did,
                   const std::string& peer_did,
@@ -101,12 +106,18 @@ public:
 
     bool start();
     void stop();
+    std::size_t active_session_count() const;
+    uint16_t listen_port() const { return listen_port_; }
+    bool is_ready() const { return p2p_connected_; }
 
     void set_ssh_hint(const std::string& user, const std::string& key = "");
 
-    /// P2P 连接就绪回调
-    using ReadyCallback = std::function<void()>;
     void on_ready(ReadyCallback cb) { on_ready_ = std::move(cb); }
+    void on_failed(FailedCallback cb) { on_failed_ = std::move(cb); }
+    void on_stopped(StoppedCallback cb) { on_stopped_ = std::move(cb); }
+    void on_session_count_changed(SessionCountCallback cb) {
+        on_session_count_changed_ = std::move(cb);
+    }
 
     /// 从 TCP 接收数据，通过 P2PClient 发送
     void send_to_p2p(int channel_id, const std::vector<uint8_t>& data);
@@ -133,13 +144,16 @@ private:
     // 会话管理
     std::map<int, std::shared_ptr<TunnelSession>> sessions_;
     std::map<int, int> channel_to_session_;  // channel_id → session_id
-    std::mutex sessions_mutex_;
+    mutable std::mutex sessions_mutex_;
     int next_session_id_ = 0;
     bool stopping_ = false;
 
     std::string ssh_user_;
     std::string ssh_key_;
     ReadyCallback on_ready_;
+    FailedCallback on_failed_;
+    StoppedCallback on_stopped_;
+    SessionCountCallback on_session_count_changed_;
 };
 
 }  // namespace bto

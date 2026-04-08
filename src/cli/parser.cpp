@@ -41,9 +41,26 @@ auto parse_arguments(int argc, char* argv[]) -> Command {
             if (i + 1 < args.size() && !args[i+1].empty() && args[i+1][0] != '-')
                 cmd.target = args[++i];
         }
+        else if (arg == "upgrade") {
+            cmd.name = "upgrade";
+            if (i + 1 < args.size() && !args[i+1].empty() && args[i+1][0] != '-')
+                cmd.target = args[++i];
+        }
         else if (arg == "list")   { cmd.name = "list"; }
+        else if (arg == "ps")     { cmd.name = "ps"; }
+        else if (arg == "close") {
+            cmd.name = "close";
+            if (i + 1 < args.size() && !args[i+1].empty() && args[i+1][0] != '-')
+                cmd.target = args[++i];
+        }
         else if (arg == "status") { cmd.name = "status"; }
         else if (arg == "config") { cmd.name = "config"; }
+        else if (arg == "daemon") {
+            cmd.name = "daemon";
+            if (i + 1 < args.size() && !args[i + 1].empty() && args[i + 1][0] != '-') {
+                cmd.daemon_action = args[++i];
+            }
+        }
         else if (arg == "ping") {
             cmd.name = "ping";
             if (i + 1 < args.size() && !args[i+1].empty() && args[i+1][0] != '-')
@@ -66,7 +83,13 @@ auto parse_arguments(int argc, char* argv[]) -> Command {
         }
         else if (arg == "--listen" && i + 1 < args.size()) {
             try {
-                cmd.listen_port = static_cast<uint16_t>(std::stoi(args[++i]));
+                const auto parsed = std::stoi(args[++i]);
+                if (parsed > 0 && parsed <= 65535) {
+                    cmd.listen_port = static_cast<uint16_t>(parsed);
+                    cmd.listen_port_explicit = true;
+                } else {
+                    std::cerr << "警告: --listen 端口超出范围，使用默认 2222\n";
+                }
             } catch (...) {
                 std::cerr << "警告: --listen 端口格式错误，使用默认 2222\n";
             }
@@ -76,6 +99,36 @@ auto parse_arguments(int argc, char* argv[]) -> Command {
         }
         else if (arg == "--key" && i + 1 < args.size()) {
             cmd.key = args[++i];
+        }
+        else if (arg == "--artifact" && i + 1 < args.size()) {
+            cmd.artifact_name = args[++i];
+        }
+        else if (arg == "--live-binary" && i + 1 < args.size()) {
+            cmd.live_binary = args[++i];
+        }
+        else if (arg == "--activate-command" && i + 1 < args.size()) {
+            cmd.activate_command = args[++i];
+        }
+        else if (arg == "--rollback-command" && i + 1 < args.size()) {
+            cmd.rollback_command = args[++i];
+        }
+        else if (arg == "--health-command" && i + 1 < args.size()) {
+            cmd.health_command = args[++i];
+        }
+        else if (arg == "--timeout-seconds" && i + 1 < args.size()) {
+            try {
+                const auto parsed = std::stoul(args[++i]);
+                if (parsed > 0 && parsed <= 3600) {
+                    cmd.timeout_seconds = static_cast<uint32_t>(parsed);
+                } else {
+                    std::cerr << "警告: --timeout-seconds 超出范围，使用默认 30\n";
+                }
+            } catch (...) {
+                std::cerr << "警告: --timeout-seconds 格式错误，使用默认 30\n";
+            }
+        }
+        else if (arg == "--legacy-direct") {
+            cmd.legacy_direct = true;
         }
         // 快捷方式: bto <host> = bto connect <host>
         else if (cmd.name.empty() && !arg.empty() && arg[0] != '-') {
@@ -99,11 +152,15 @@ void help_overview() {
         "\n"
         "用法:\n"
         "  bto connect <peer>           连接远端设备（支持多终端并发）\n"
+        "  bto upgrade <peer>           通过 PeerLink 推送制品并触发远端升级\n"
         "  bto <peer>                   同上（快捷方式）\n"
         "  bto list                     列出已配置设备\n"
+        "  bto ps                       查看 daemon 连接状态\n"
+        "  bto close <peer>             关闭指定目标的本地桥接\n"
         "  bto add <name> [--did <d>]   添加设备\n"
         "  bto remove <name>            移除设备\n"
         "  bto status                   显示配置状态\n"
+        "  bto daemon <status|start|stop> 管理本机 peerlinkd\n"
         "  bto config                   显示配置文件路径和内容\n"
         "  bto ping                     测试 Relay 是否可达\n"
         "  bto help [命令|errors]       查看帮助\n"
@@ -112,6 +169,13 @@ void help_overview() {
         "  --did <did>          本机 DID（覆盖配置文件）\n"
         "  --relay <host:port>  Relay 服务器地址（覆盖配置文件）\n"
         "  --listen <port>      本地监听端口（默认 2222）\n"
+        "  --legacy-direct      跳过 daemon，回退旧版直连模式\n"
+        "  --artifact <name>    升级制品名（默认 p2p-tunnel-server）\n"
+        "  --live-binary <p>    远端生效目标路径\n"
+        "  --activate-command   替换后二次激活命令\n"
+        "  --rollback-command   回滚后二次激活命令\n"
+        "  --health-command     升级健康检查命令\n"
+        "  --timeout-seconds    升级命令超时（默认 30）\n"
         "  --user <user>        SSH 用户名（配合 add 使用）\n"
         "  --key <path>         SSH 私钥路径（配合 add 使用）\n"
         "  --version, -v        显示版本\n"
@@ -120,7 +184,7 @@ void help_overview() {
         "快速开始:\n"
         "  1. bto add office-213 --did office-213\n"
         "  2. bto connect office-213\n"
-        "  3. ssh -p 2222 user@127.0.0.1\n"
+        "  3. bto ps\n"
         "\n"
         "更多帮助: bto help connect | bto help errors\n";
 }
@@ -139,27 +203,50 @@ void help_connect() {
         "            bto office  → 匹配 office-213（仅当唯一匹配时）\n"
         "\n"
         "选项:\n"
-        "  --listen <port>   本地监听端口（默认 2222）\n"
+        "  --listen <port>   优先请求 daemon 使用该本地端口\n"
         "  --did <did>       本机 DID（覆盖配置）\n"
         "  --relay <h:p>     Relay 服务器（覆盖配置）\n"
+        "  --legacy-direct   使用旧版单进程模式\n"
         "\n"
         "多终端支持:\n"
-        "  每个 SSH 连入创建独立 P2P 隧道，互不影响。\n"
-        "  可同时开多个终端连接同一个远端设备。\n"
+        "  默认通过本机 peerlinkd 复用目标连接并分配本地监听端口。\n"
+        "  可同时开多个终端连接同一个或不同远端设备。\n"
         "\n"
         "示例:\n"
         "  bto connect office-213\n"
-        "  bto 213 --listen 3333\n"
+        "  bto 213\n"
         "  bto connect office-215 --relay relay.example.com:9700\n"
+        "  bto connect office-213 --legacy-direct\n"
         "\n"
         "连接后:\n"
-        "  ssh -p 2222 user@127.0.0.1           # 终端 1\n"
-        "  ssh -p 2222 user@127.0.0.1           # 终端 2（并发）\n"
+        "  bto 会自动拉起本地 SSH，无需再手工 ssh -p <port>\n"
         "\n"
         "长时间工作建议:\n"
         "  • 远端使用 tmux，SSH 断了可恢复: tmux attach\n"
-        "  • SSH 配置 ServerAliveInterval 30 防空闲断开\n"
-        "  • bto 进程保持运行，SSH 断了重连即可\n";
+        "  • SSH 配置 ServerAliveInterval 30 防空闲断开\n";
+}
+
+void help_upgrade() {
+    std::cout <<
+        "bto upgrade — 通过 PeerLink 推送二进制并触发远端升级\n"
+        "\n"
+        "用法:\n"
+        "  bto upgrade <peer> [选项]\n"
+        "\n"
+        "默认行为:\n"
+        "  • 从阿里云 manifest 读取最新制品信息\n"
+        "  • 默认推送 p2p-tunnel-server\n"
+        "  • 传输完成后在远端执行 apply\n"
+        "\n"
+        "选项:\n"
+        "  --artifact <name>          制品名（默认 p2p-tunnel-server）\n"
+        "  --live-binary <path>       远端目标路径\n"
+        "  --activate-command <cmd>   替换后二次激活命令\n"
+        "  --rollback-command <cmd>   回滚后二次激活命令\n"
+        "  --health-command <cmd>     健康检查命令\n"
+        "  --timeout-seconds <n>      超时秒数（默认 30）\n"
+        "  --did <did>                本机 DID 覆盖\n"
+        "  --relay <host:port>        Relay 覆盖\n";
 }
 
 void help_add() {
@@ -208,6 +295,27 @@ void help_config() {
         "    did = \"office-215\"\n";
 }
 
+void help_close() {
+    std::cout <<
+        "bto close — 关闭指定目标的本地桥接\n"
+        "\n"
+        "用法:\n"
+        "  bto close <peer>\n"
+        "\n"
+        "说明:\n"
+        "  关闭 peerlinkd 中对应目标的本地监听端口与桥接连接。\n";
+}
+
+void help_daemon() {
+    std::cout <<
+        "bto daemon — 管理本机 peerlinkd\n"
+        "\n"
+        "用法:\n"
+        "  bto daemon status\n"
+        "  bto daemon start\n"
+        "  bto daemon stop\n";
+}
+
 void help_errors() {
     std::cout <<
         "bto 退出码参考\n"
@@ -241,11 +349,14 @@ void show_help(const std::string& topic) {
     if (topic.empty())       help_overview();
     else if (topic == "connect")  help_connect();
     else if (topic == "add")      help_add();
+    else if (topic == "upgrade")  help_upgrade();
     else if (topic == "remove")   help_remove();
     else if (topic == "config")   help_config();
+    else if (topic == "close")    help_close();
+    else if (topic == "daemon")   help_daemon();
     else if (topic == "errors" || topic == "error" || topic == "exit-codes")
         help_errors();
-    else if (topic == "list" || topic == "status") {
+    else if (topic == "list" || topic == "status" || topic == "ps") {
         std::cout << "bto " << topic << " — 无需额外参数，直接运行即可。\n"
                   << "运行 bto help 查看所有命令。\n";
     }

@@ -167,23 +167,40 @@ bool ConnectBridge::start() {
 void ConnectBridge::stop() {
     if (stopping_) return;
     stopping_ = true;
+    p2p_connected_ = false;
 
     std::cout << "[bto] 停止桥接服务..." << std::endl;
 
     boost::system::error_code ec;
     acceptor_.close(ec);
 
-    std::lock_guard<std::mutex> lock(sessions_mutex_);
-    for (auto& [id, session] : sessions_) {
+    std::map<int, std::shared_ptr<TunnelSession>> sessions_to_close;
+    {
+        std::lock_guard<std::mutex> lock(sessions_mutex_);
+        sessions_to_close.swap(sessions_);
+        channel_to_session_.clear();
+    }
+
+    for (auto& [id, session] : sessions_to_close) {
         session->close();
     }
-    sessions_.clear();
-    channel_to_session_.clear();
 
     if (p2p_client_) {
         p2p_client_->close();
         p2p_client_.reset();
     }
+
+    auto on_stopped = on_stopped_;
+    if (on_stopped) {
+        boost::asio::post(ioc_, [on_stopped]() {
+            on_stopped();
+        });
+    }
+}
+
+std::size_t ConnectBridge::active_session_count() const {
+    std::lock_guard<std::mutex> lock(sessions_mutex_);
+    return sessions_.size();
 }
 
 void ConnectBridge::set_ssh_hint(const std::string& user, const std::string& key) {
@@ -206,7 +223,6 @@ void ConnectBridge::initialize_p2p_client() {
 
     p2p_client_->on_disconnected([self]() {
         std::cerr << "[bto] P2P 断开连接" << std::endl;
-        self->p2p_connected_ = false;
         self->stop();
     });
 
@@ -221,7 +237,11 @@ void ConnectBridge::initialize_p2p_client() {
     std::cout << "[bto] 初始化 P2PClient (DID=" << did_ << ")" << std::endl;
     p2p_client_->initialize([self](const std::error_code& ec) {
         if (ec) {
+            auto message = "P2PClient initialize failed: " + ec.message();
             std::cerr << "[bto] P2PClient 初始化失败: " << ec.message() << std::endl;
+            if (self->on_failed_) {
+                self->on_failed_(message);
+            }
             self->stop();
             return;
         }
@@ -229,7 +249,11 @@ void ConnectBridge::initialize_p2p_client() {
         std::cout << "[bto] 连接到 " << self->peer_did_ << " ..." << std::endl;
         self->p2p_client_->connect(self->peer_did_, [self](const std::error_code& ec) {
             if (ec) {
+                auto message = "P2P connect failed: " + ec.message();
                 std::cerr << "[bto] P2P 连接失败: " << ec.message() << std::endl;
+                if (self->on_failed_) {
+                    self->on_failed_(message);
+                }
                 self->stop();
                 return;
             }
@@ -284,6 +308,9 @@ void ConnectBridge::do_accept() {
             self->sessions_[session_id] = session;
             self->channel_to_session_[channel_id] = session_id;
         }
+        if (self->on_session_count_changed_) {
+            self->on_session_count_changed_(self->active_session_count());
+        }
 
         std::cout << "[bto] #" << session_id << " 新连接 (channel=" << channel_id << ")" << std::endl;
 
@@ -301,21 +328,29 @@ void ConnectBridge::do_accept() {
 }
 
 void ConnectBridge::remove_session(int id) {
-    std::lock_guard<std::mutex> lock(sessions_mutex_);
+    std::size_t remaining = 0;
+    {
+        std::lock_guard<std::mutex> lock(sessions_mutex_);
 
-    auto it = sessions_.find(id);
-    if (it == sessions_.end()) return;
+        auto it = sessions_.find(id);
+        if (it == sessions_.end()) return;
 
-    int channel_id = it->second->channel_id();
-    if (channel_id >= 0) {
-        channel_to_session_.erase(channel_id);
-        if (p2p_client_) {
-            p2p_client_->close_channel(channel_id);
+        int channel_id = it->second->channel_id();
+        if (channel_id >= 0) {
+            channel_to_session_.erase(channel_id);
+            if (p2p_client_) {
+                p2p_client_->close_channel(channel_id);
+            }
         }
+
+        sessions_.erase(it);
+        remaining = sessions_.size();
     }
 
-    sessions_.erase(it);
-    std::cout << "[bto] #" << id << " 会话已清理 (剩余 " << sessions_.size() << " 个)" << std::endl;
+    std::cout << "[bto] #" << id << " 会话已清理 (剩余 " << remaining << " 个)" << std::endl;
+    if (on_session_count_changed_) {
+        on_session_count_changed_(remaining);
+    }
 }
 
 void ConnectBridge::send_to_p2p(int channel_id, const std::vector<uint8_t>& data) {

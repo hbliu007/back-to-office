@@ -29,16 +29,25 @@ namespace ExitCode {
 }
 
 struct Command {
-    std::string name;           // connect, list, add, remove, status, config, ping
-    std::string target;         // peer name or DID
+    std::string name;           // connect, upgrade, list, add, remove, status, config, ping, ps, close, daemon
+    std::string target;         // peer name, DID, or session/connection query
     std::string did;            // --did override
     std::string relay;          // --relay override
     std::string help_topic;     // help <topic> 的主题
     std::string user;           // --user (for add)
     std::string key;            // --key (for add)
+    std::string daemon_action;  // start, stop, status
+    std::string artifact_name;  // --artifact (for upgrade)
+    std::string live_binary;    // --live-binary (for upgrade)
+    std::string activate_command; // --activate-command (for upgrade)
+    std::string rollback_command; // --rollback-command (for upgrade)
+    std::string health_command; // --health-command (for upgrade)
     uint16_t listen_port = 2222;
+    uint32_t timeout_seconds = 30;
     bool version = false;
     bool help    = false;
+    bool legacy_direct = false;
+    bool listen_port_explicit = false;
 };
 
 auto parse_arguments(int argc, char* argv[]) -> Command;

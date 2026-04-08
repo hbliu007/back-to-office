@@ -13,6 +13,7 @@ set(P2P_BUILD "${P2P_ROOT}/build")
 # 查找依赖
 find_package(Boost REQUIRED)
 find_package(Threads REQUIRED)
+find_package(OpenSSL REQUIRED)
 set(CMAKE_PREFIX_PATH "/opt/homebrew;${CMAKE_PREFIX_PATH}")
 find_package(fmt REQUIRED)
 set(SPDLOG_FMT_EXTERNAL ON CACHE BOOL "Use external fmt library" FORCE)
@@ -40,56 +41,61 @@ link_directories(
     ${P2P_BUILD}/proto
 )
 
-add_executable(bto
-    src/bto.cpp
+add_library(bto_runtime STATIC
     src/p2p_bridge_v2.cpp
     src/cli/parser.cpp
     src/config/config.cpp
+    src/daemon/local_endpoint_manager.cpp
+    src/daemon/peerlink_service.cpp
+    src/daemon/daemon_client.cpp
+    src/upgrade/manifest_client.cpp
+    src/upgrade/upgrade_client.cpp
+)
+
+add_executable(bto
+    src/bto.cpp
+)
+
+add_executable(peerlinkd
+    src/peerlinkd_main.cpp
 )
 
 # 保留旧版本用于对比测试
 add_executable(bto_v1
     src/bto.cpp
-    src/p2p_bridge.cpp
-    src/cli/parser.cpp
-    src/config/config.cpp
+)
+
+target_link_libraries(bto_runtime PUBLIC
+    p2p_core
+    p2p_transport
+    p2p_nat
+    p2p_protocol
+    p2p_net
+    p2p_utils
+    p2p_security
+    p2p-crypto
+    p2p-proto
+    Boost::headers
+    Threads::Threads
+    spdlog::spdlog
+    fmt::fmt
+    protobuf::libprotobuf
+    OpenSSL::Crypto
 )
 
 target_link_libraries(bto
-    p2p_core
-    p2p_transport
-    p2p_nat
-    p2p_protocol
-    p2p_net
-    p2p_utils
-    p2p_security
-    p2p-crypto
-    p2p-proto
-    Boost::headers
-    Threads::Threads
-    spdlog::spdlog
-    fmt::fmt
-    protobuf::libprotobuf
+    bto_runtime
+)
+
+target_link_libraries(peerlinkd
+    bto_runtime
 )
 
 target_link_libraries(bto_v1
-    p2p_core
-    p2p_transport
-    p2p_nat
-    p2p_protocol
-    p2p_net
-    p2p_utils
-    p2p_security
-    p2p-crypto
-    p2p-proto
-    Boost::headers
-    Threads::Threads
-    spdlog::spdlog
-    fmt::fmt
-    protobuf::libprotobuf
+    bto_runtime
 )
 
-install(TARGETS bto bto_v1 RUNTIME DESTINATION bin)
+install(TARGETS bto peerlinkd bto_v1 RUNTIME DESTINATION bin)
 
 # ─── 测试 ───────────────────────────────────────────────────────
 option(BTO_BUILD_TESTS "构建单元测试" ON)
@@ -111,10 +117,12 @@ if(BTO_BUILD_TESTS)
         test/test_parser.cpp
         test/test_config.cpp
         test/test_commands.cpp
+        test/test_manifest_client.cpp
     )
     target_include_directories(bto_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
     target_link_libraries(bto_tests
         bto_testable
+        bto_runtime
         GTest::gtest
     )
     # 让集成测试知道 bto 二进制路径

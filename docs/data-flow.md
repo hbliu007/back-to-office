@@ -1,168 +1,100 @@
 # 数据流与会话生命周期
 
-## 连接建立流程
+## 默认连接流程
 
 ```
 用户执行: bto connect office-213
 
-main()
+bto
+  ├─ parse_arguments()
+  ├─ Config::load(~/.bto/config.toml)
+  ├─ resolve_peer() / 组装 local_did + target_did + relay
+  ├─ 通过 UDS 请求 peerlinkd.create_session
   │
-  ├─ parse_arguments() → Command{name="connect", target="office-213"}
-  │
-  ├─ Config::load("~/.bto/config.toml")
-  │
-  ├─ resolve_peer("office-213") → did="office-213", user="user"
-  │
-  ├─ build_p2p_config(relay_host, relay_port)
-  │    └─ RelayMode::RELAY_ONLY
-  │
-  ├─ ConnectBridge(ioc, "home-mac", "office-213", p2p_cfg, 2222)
-  │    ├─ set_ssh_hint("user", "")
-  │    └─ start()
-  │         ├─ acceptor_.bind(0.0.0.0:2222)
-  │         ├─ acceptor_.listen()
-  │         ├─ 打印: "ssh -p 2222 user@127.0.0.1"
-  │         └─ do_accept()  ← 循环等待 SSH 连入
-  │
-  └─ ioc.run()  ← 事件循环启动
+  └─ daemon 返回:
+       session_id = "sess-42"
+       local_port = 2222 / 2223 / auto-assigned
 ```
 
-## SSH 连入 → 会话创建
+随后：
 
 ```
-SSH 客户端连入 port 2222
-  │
-  ▼
-do_accept()
-  │
-  ├─ session_id = ++next_session_id_     (例: 1)
-  ├─ session_did = "home-mac-session-1"
-  │
-  ├─ TunnelSession(id=1, did="home-mac-session-1", ioc, config, socket)
-  │    │
-  │    ├─ P2PClient(ioc, "home-mac-session-1", config)  ← 独立实例
-  │    └─ tcp_socket_ = SSH 连接的 socket
-  │
-  ├─ sessions_[1] = session
-  │
-  ├─ session.start("office-213")
-  │    │
-  │    ├─ 注册回调: on_connected / on_disconnected / on_data / on_error
-  │    │
-  │    ├─ client_->initialize()         ← 注册 DID 到 Relay
-  │    │    └─ callback:
-  │    │         └─ client_->connect("office-213")  ← 连接远端
-  │    │              └─ callback:
-  │    │                   └─ on_connected 触发
-  │    │                        ├─ create_channel() → channel_id_
-  │    │                        └─ read_tcp()  ← 开始数据桥接
-  │    │
-  │    └─ (异步等待 P2P 连接建立)
-  │
-  └─ do_accept()  ← 继续接受下一个 SSH 连入
+bto
+  ├─ fork/exec ssh user@127.0.0.1 -p <local_port>
+  ├─ 等待当前终端的 ssh 退出
+  └─ peerlinkd.close_session(session_id)
 ```
 
-## 双向数据桥接
+## daemon 内部连接复用
 
 ```
-SSH 客户端                 BTO                      远端 sshd
-    │                       │                          │
-    │── TCP data ──────────►│                          │
-    │                       │── send_data(P2P) ──────►│
-    │                       │   (channel_id_)          │
-    │                       │                          │
-    │                       │◄── on_data(P2P) ────────│
-    │◄── async_write(TCP) ──│                          │
-    │                       │                          │
-
-详细流程:
-
-read_tcp()
+create_session(local_did, target_did, relay)
   │
-  ├─ tcp_socket_->async_read_some(buf, 8192)
-  │    │
-  │    └─ callback(ec, n):
-  │         ├─ 错误? → close()
-  │         ├─ buf.resize(n)
-  │         └─ client_->send_data(channel_id_, buf)
-  │              │
-  │              └─ callback(ec):       ← 背压控制点
-  │                   ├─ 错误? → close()
-  │                   └─ read_tcp()     ← 发送完成后才读下一块
+  ├─ 命中已有 TargetConnection?
+  │    ├─ 是: 复用既有 local_port 和 ConnectBridge
+  │    └─ 否: 分配新的 local_port，创建 ConnectBridge
   │
-on_data(channel_id, data)  ← P2P 接收回调
+  ├─ 等待 ConnectBridge ready
+  └─ 生成 SessionRecord 返回给当前 bto 进程
+```
+
+连接键是：
+
+```
+local_did + "|" + target_did + "|" + relay_host:relay_port
+```
+
+这保证了：
+
+- 同一用户同一 DID 访问同一目标时会复用连接
+- 不同本机 DID 不会互相串用
+- 不同目标会自动拿到不同本地端口
+
+## `ConnectBridge` 内部流向
+
+```
+peerlinkd 持有一个 ConnectBridge
   │
-  ├─ closed_? → return
-  ├─ channel_id 匹配? → return (不匹配)
-  ├─ socket open? → return (已关闭)
-  └─ async_write(tcp_socket_, data)
-       └─ callback(ec):
-            └─ 错误? → close()
+  ├─ 本地 SSH #1 连入 → TunnelSession #1 → create_channel()
+  ├─ 本地 SSH #2 连入 → TunnelSession #2 → create_channel()
+  └─ 本地 SSH #N 连入 → TunnelSession #N → create_channel()
 ```
 
-## 会话关闭流程
+关键点：
+
+- 一个目标只保留一个 `P2PClient`
+- 每个本地 SSH TCP 流对应一个 `TunnelSession`
+- 每个 `TunnelSession` 对应一个 P2P channel
+
+## 为什么这能解决多终端问题
+
+旧路径的问题在于“一个 `bto connect` 进程 = 一个本地端口 + 一个生命周期”。
+
+新路径中：
+
+- 终端 A 的 `bto 213` 只持有自己的 ssh 子进程
+- 终端 B 的 `bto 213` 会向同一个 daemon 再申请一个 session
+- 终端 C 的 `bto 215` 会拿到另一个目标连接和另一个本地端口
+
+因此三个终端互相隔离，但底层连接由 daemon 统一协调。
+
+## 关闭与回收
 
 ```
-触发条件:
-  • SSH 客户端断开 (read_tcp 收到 EOF)
-  • P2P 连接断开 (on_disconnected)
-  • P2P 错误 (connect 失败、send_data 失败)
-  • TCP 写入错误
+ssh 退出
+  ├─ bto 调用 close_session(session_id)
+  ├─ TargetConnection 引用计数 -1
+  └─ 若无 session 引用且无活动 tunnel:
+       30s 后自动 stop()
 
-close()
-  │
-  ├─ closed_ = true           ← 幂等保护
-  ├─ tcp_socket_->close()     ← 关闭 TCP 连接
-  ├─ client_->close()         ← 关闭 P2P 连接
-  └─ boost::asio::post(ioc_)  ← 延迟执行 cleanup
-       │
-       └─ on_cleanup_(id_)
-            │
-            └─ ConnectBridge::remove_session(id)
-                 ├─ sessions_.erase(id)
-                 └─ 打印: "#1 已清理 (活跃会话: 0)"
-
-为什么延迟清理?
-  close() 可能在 P2P 回调栈中被调用:
-    on_data → async_write 错误 → close() → remove_session → erase(self)
-  如果直接 erase，会在回调栈返回时访问已销毁对象。
-  post() 保证 cleanup 在当前回调完全返回后才执行。
+如果 `bto` 在拿到 session 后异常退出，没有机会主动发送 `close_session`，
+daemon 还会依赖 session 租约超时做兜底清理，避免本地端口永久悬挂。
 ```
 
-## 信号处理
+`ConnectBridge::stop()` 现在会：
 
-```
-SIGINT / SIGTERM
-  │
-  └─ signal_handler()
-       └─ g_ioc->stop()
-            │
-            └─ ioc.run() 返回
-                 └─ main() 返回 EC::OK
+- 先摘出 `sessions_`
+- 在锁外逐个关闭会话
+- 回调 daemon 做连接状态清理
 
-注意: ConnectBridge::stop() 不会被显式调用。
-io_context 停止后，所有异步操作被取消，
-shared_ptr 引用计数归零时 session 自动析构。
-```
-
-## 并发会话示意
-
-```
-终端 1: ssh -p 2222 user@127.0.0.1
-终端 2: ssh -p 2222 user@127.0.0.1
-终端 3: ssh -p 2222 user@127.0.0.1
-
-ConnectBridge
-├── Session #1: home-mac-session-1 ──P2P──► office-213  (独立 relay 连接)
-├── Session #2: home-mac-session-2 ──P2P──► office-213  (独立 relay 连接)
-└── Session #3: home-mac-session-3 ──P2P──► office-213  (独立 relay 连接)
-
-每个 session 有独立的:
-  • P2PClient 实例
-  • DID 标识（base_did + "-session-" + N）
-  • Relay 连接
-  • 数据通道
-  • TCP socket
-
-session 之间完全隔离，某个断开不影响其他。
-```
+这样避免了 stop 时直接在锁内递归触发 cleanup 的死锁问题。

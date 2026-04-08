@@ -599,6 +599,18 @@ TEST(DefaultConfigPath, FallbackWhenNoHome) {
     if (old) setenv("HOME", old, 1);
 }
 
+TEST(DefaultRuntimeDir, UsesHome) {
+    EnvOverride home("HOME", "/tmp/fake-home");
+    auto path = bto::config::default_runtime_dir();
+    EXPECT_EQ(path, "/tmp/fake-home/.peerlink/run");
+}
+
+TEST(DefaultDaemonSocketPath, UsesHome) {
+    EnvOverride home("HOME", "/tmp/fake-home");
+    auto path = bto::config::default_daemon_socket_path();
+    EXPECT_EQ(path, "/tmp/fake-home/.peerlink/run/peerlinkd.sock");
+}
+
 // ═══════════════════════════════════════════════════════════════
 //  PeerConfig 默认值
 // ═══════════════════════════════════════════════════════════════

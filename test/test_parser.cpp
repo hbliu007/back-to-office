@@ -160,6 +160,15 @@ TEST(Parser, Connect_WithListenPort) {
     EXPECT_EQ(cmd.name, "connect");
     EXPECT_EQ(cmd.target, "office-213");
     EXPECT_EQ(cmd.listen_port, 3333);
+    EXPECT_TRUE(cmd.listen_port_explicit);
+}
+
+TEST(Parser, Connect_WithInvalidListenPortFallsBack) {
+    Args a{"bto", "connect", "office-213", "--listen", "70000"};
+    auto cmd = bto::cli::parse_arguments(a.argc(), a.argv());
+
+    EXPECT_EQ(cmd.listen_port, 2222);
+    EXPECT_FALSE(cmd.listen_port_explicit);
 }
 
 TEST(Parser, Connect_WithDid) {
@@ -209,6 +218,50 @@ TEST(Parser, Connect_AllOptions) {
     EXPECT_EQ(cmd.did, "my-did");
     EXPECT_EQ(cmd.relay, "1.2.3.4:9700");
     EXPECT_EQ(cmd.listen_port, 5555);
+    EXPECT_TRUE(cmd.listen_port_explicit);
+}
+
+TEST(Parser, Connect_LegacyDirect) {
+    Args a{"bto", "connect", "peer1", "--legacy-direct"};
+    auto cmd = bto::cli::parse_arguments(a.argc(), a.argv());
+
+    EXPECT_EQ(cmd.name, "connect");
+    EXPECT_EQ(cmd.target, "peer1");
+    EXPECT_TRUE(cmd.legacy_direct);
+}
+
+TEST(Parser, UpgradeCommand) {
+    Args a{"bto", "upgrade", "office-213"};
+    auto cmd = bto::cli::parse_arguments(a.argc(), a.argv());
+
+    EXPECT_EQ(cmd.name, "upgrade");
+    EXPECT_EQ(cmd.target, "office-213");
+}
+
+TEST(Parser, UpgradeAllOptions) {
+    Args a{"bto", "upgrade", "office-213",
+           "--artifact", "p2p-tunnel-server",
+           "--live-binary", "/usr/local/bin/p2p-tunnel-server",
+           "--activate-command", "systemctl restart peerlink-tunnel",
+           "--rollback-command", "systemctl restart peerlink-tunnel",
+           "--health-command", "systemctl is-active peerlink-tunnel",
+           "--timeout-seconds", "45"};
+    auto cmd = bto::cli::parse_arguments(a.argc(), a.argv());
+
+    EXPECT_EQ(cmd.name, "upgrade");
+    EXPECT_EQ(cmd.artifact_name, "p2p-tunnel-server");
+    EXPECT_EQ(cmd.live_binary, "/usr/local/bin/p2p-tunnel-server");
+    EXPECT_EQ(cmd.activate_command, "systemctl restart peerlink-tunnel");
+    EXPECT_EQ(cmd.rollback_command, "systemctl restart peerlink-tunnel");
+    EXPECT_EQ(cmd.health_command, "systemctl is-active peerlink-tunnel");
+    EXPECT_EQ(cmd.timeout_seconds, 45u);
+}
+
+TEST(Parser, UpgradeInvalidTimeoutFallsBack) {
+    Args a{"bto", "upgrade", "office-213", "--timeout-seconds", "0"};
+    auto cmd = bto::cli::parse_arguments(a.argc(), a.argv());
+
+    EXPECT_EQ(cmd.timeout_seconds, 30u);
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -337,6 +390,29 @@ TEST(Parser, Ping_TargetSkipsFlags) {
     EXPECT_EQ(cmd.relay, "1.2.3.4:9700");
 }
 
+TEST(Parser, PsCommand) {
+    Args a{"bto", "ps"};
+    auto cmd = bto::cli::parse_arguments(a.argc(), a.argv());
+
+    EXPECT_EQ(cmd.name, "ps");
+}
+
+TEST(Parser, CloseCommand) {
+    Args a{"bto", "close", "office-213"};
+    auto cmd = bto::cli::parse_arguments(a.argc(), a.argv());
+
+    EXPECT_EQ(cmd.name, "close");
+    EXPECT_EQ(cmd.target, "office-213");
+}
+
+TEST(Parser, DaemonCommandWithAction) {
+    Args a{"bto", "daemon", "start"};
+    auto cmd = bto::cli::parse_arguments(a.argc(), a.argv());
+
+    EXPECT_EQ(cmd.name, "daemon");
+    EXPECT_EQ(cmd.daemon_action, "start");
+}
+
 // ═══════════════════════════════════════════════════════════════
 //  parse_arguments — 快捷方式与边界情况
 // ═══════════════════════════════════════════════════════════════
@@ -371,6 +447,7 @@ TEST(Parser, DefaultListenPort) {
     auto cmd = bto::cli::parse_arguments(a.argc(), a.argv());
 
     EXPECT_EQ(cmd.listen_port, 2222);
+    EXPECT_FALSE(cmd.listen_port_explicit);
 }
 
 TEST(Parser, CommandDefaultFields) {
@@ -382,9 +459,12 @@ TEST(Parser, CommandDefaultFields) {
     EXPECT_TRUE(cmd.help_topic.empty());
     EXPECT_TRUE(cmd.user.empty());
     EXPECT_TRUE(cmd.key.empty());
+    EXPECT_TRUE(cmd.daemon_action.empty());
     EXPECT_EQ(cmd.listen_port, 2222);
     EXPECT_FALSE(cmd.version);
     EXPECT_FALSE(cmd.help);
+    EXPECT_FALSE(cmd.legacy_direct);
+    EXPECT_FALSE(cmd.listen_port_explicit);
 }
 
 // ═══════════════════════════════════════════════════════════════

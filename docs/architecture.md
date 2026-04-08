@@ -1,146 +1,107 @@
 # 系统架构
 
-## 模块依赖
+## 当前结构
 
 ```
-┌─────────────────────────────────────────────────┐
-│                    bto.cpp                       │
-│              主入口 · 命令分发                    │
-│    cmd_connect / list / status / config          │
-│    cmd_add / remove / ping                       │
-├──────────┬──────────────┬───────────────────────┤
-│  cli/    │   config/    │    p2p_bridge          │
-│ parser   │   config     │  TunnelSession         │
-│          │              │  ConnectBridge          │
-└──────────┴──────┬───────┴──────────┬────────────┘
-                  │                  │
-                  │        ┌────────▼────────┐
-                  │        │  PeerLink P2P   │
-                  │        │  p2p_core       │
-                  │        │  p2p_transport   │
-                  │        │  p2p_nat         │
-                  │        └─────────────────┘
-                  │
-           ┌──────▼──────┐
-           │ ~/.bto/     │
-           │ config.toml │
-           └─────────────┘
+┌──────────────────────────────────────────────────────────────┐
+│                         bto CLI                              │
+│     connect / list / ps / close / daemon / add / remove     │
+├───────────────────────┬──────────────────────────────────────┤
+│ cli/parser            │ config/config                        │
+│ 命令解析              │ ~/.bto/config.toml / ~/.peerlink/run │
+└───────────────┬───────┴──────────────────────┬───────────────┘
+                │                              │
+                │ UDS JSON API                 │
+        ┌───────▼──────────────────────────────▼────────┐
+        │                 peerlinkd                     │
+        │ LocalEndpointManager / TargetConnection       │
+        │ SessionBroker / PeerlinkService               │
+        └───────────────┬───────────────────────────────┘
+                        │
+                ┌───────▼────────┐
+                │ ConnectBridge  │
+                │ 单目标单本地端口 │
+                │ 多 SSH 通道复用 │
+                └───────┬────────┘
+                        │
+                ┌───────▼────────┐
+                │ PeerLink P2P   │
+                │ relay-only     │
+                └────────────────┘
 ```
+
+## 关键变化
+
+### 从 `bto` 前台进程下沉到 `peerlinkd`
+
+旧模型的问题不是 `ConnectBridge` 不能多通道，而是 `bto connect` 把以下三件事绑死在一个前台进程里：
+
+- 固定占用一个本地端口，默认 `2222`
+- 只管理一个 `ssh` 子进程生命周期
+- 子进程退出时直接结束整个本地桥接
+
+这会导致多个独立终端分别执行 `bto 213` / `bto 215` 时，在 CLI 级别互相抢端口、抢生命周期。
+
+新模型改为：
+
+- `peerlinkd` 常驻，统一管理本地端口、目标连接和会话引用
+- `bto` 只负责解析配置、向 daemon 申请会话、拉起当前终端的 `ssh`
+- 同一目标可复用一个本地监听端口和一个 `ConnectBridge`
+- 不同目标自动分配不同本地端口，避免默认 `2222` 冲突
+
+### 通用目标，不绑定 213/215
+
+daemon 只认通用的连接键：
+
+- `local_did`
+- `target_did`
+- `relay_host:relay_port`
+
+因此它天然支持任意 DID，不依赖办公室机器命名，也不假设只有 `office-213` / `office-215`。
+
+### DID 与用户分层
+
+- `local_did` 表示当前本机身份，可以按不同用户/不同机器配置
+- `target_did` 表示远端 PeerLink 设备身份
+- `ssh_user` / `ssh_key` 只是 CLI 为当前终端提供的 SSH 前端参数，不参与 daemon 连接键
+
+这意味着：
+
+- 不同用户可以各自维护自己的 `~/.bto/config.toml`
+- 不同 DID 的本机客户端不会错误复用同一条目标连接
+- 同一个目标 DID 可以被多个本地终端并发访问
 
 ## 模块职责
 
-### bto.cpp — 主入口
+### `bto.cpp`
 
-- `main()`: 解析命令行 → 加载配置 → 分发命令
-- 7 个命令处理器，各自独立，无交叉依赖
-- `signal_handler`: SIGINT/SIGTERM 优雅退出
-- `parse_relay()`: 解析 `host:port` 格式
+- 默认优先走 `peerlinkd`
+- `connect` 在 daemon 可用时变成“申请会话 + 前台 ssh”
+- `--legacy-direct` 保留旧模式，作为回退路径
+- `ps` / `close` / `daemon` 提供本地运维入口
 
-### cli/parser — 命令行解析
+### `daemon/peerlink_service.*`
 
-- `parse_arguments()`: argv → `Command` 结构体，手写解析（无第三方库）
-- `show_help(topic)`: 分主题帮助系统，10 个主题分支
-- `show_version()`: 版本信息
-- `ExitCode`: 结构化退出码常量
+- 对外暴露 versioned JSON API
+- 管理连接复用、会话引用、空闲连接回收
+- 通过 UDS 向本机 CLI 提供统一入口
 
-**设计决策**: 未使用 getopt/CLI11 等库，因为命令结构简单且需要支持快捷方式语法 `bto <peer>`。
+### `daemon/local_endpoint_manager.*`
 
-### config/config — 配置管理
+- 为不同目标分配本地监听端口
+- 只在用户显式传入 `--listen` 时尝试固定端口
+- 默认自动分配，避免多个目标撞在 `2222`
 
-- `Config::load()`: 手写 TOML 子集解析器
-  - 支持 `[peers.name]` 和 `[hosts.name]`（v0 兼容）
-  - 支持 `identity` 别名（→ `did`）
-  - 忽略注释、空行、畸形行
-- `Config::save()`: 序列化回 TOML，省略默认值
-- `Config::resolve_peer()`: 模糊匹配算法
-  - 精确匹配 → 后缀匹配 → 前缀匹配
-  - 唯一匹配返回结果，歧义返回 nullopt
-- `relay_host()` / `relay_port()`: 解析 relay 地址
+### `p2p_bridge_v2.*`
 
-### p2p_bridge — P2P 桥接层
+- `ConnectBridge` 负责单目标、多通道复用
+- `TunnelSession` 负责单 SSH TCP 流
+- 现已补充 `ready / failed / stopped` 回调和活跃会话计数，适合被 daemon 托管
 
-**核心设计: 多会话架构**
+## 运行时约束
 
-```
-ConnectBridge (TCP Acceptor, port 2222)
-  │
-  ├─ accept SSH #1 → TunnelSession #1
-  │    DID: "my-laptop-session-1"
-  │    P2PClient → Relay → peer sshd
-  │
-  ├─ accept SSH #2 → TunnelSession #2
-  │    DID: "my-laptop-session-2"
-  │    P2PClient → Relay → peer sshd
-  │
-  └─ accept SSH #N → TunnelSession #N
-       DID: "my-laptop-session-N"
-```
-
-每个 SSH 连入创建独立的：
-- `TunnelSession` 实例
-- `P2PClient`（独立 DID、独立 relay 连接）
-- 双向数据桥接
-
-**会话隔离**: 单个会话断开不影响其他会话。ConnectBridge 通过 `sessions_` map 管理所有活跃会话。
-
-## 关键设计模式
-
-### shared_from_this
-
-`TunnelSession` 继承 `enable_shared_from_this`，所有异步回调持有 `self = shared_from_this()`，保证回调执行时对象仍然存活。
-
-### 背压控制
-
-```
-read_tcp() → send_data(P2P) → callback → read_tcp()
-```
-
-TCP 读取和 P2P 发送串行执行：`read_tcp()` 只在 `send_data()` 完成回调后才发起下一次读取，防止数据堆积。
-
-### 延迟清理
-
-```cpp
-void TunnelSession::close() {
-    // ...
-    boost::asio::post(ioc_, [cleanup, id]() { cleanup(id); });
-}
-```
-
-`close()` 可能在 P2P 回调中被调用。如果直接执行 cleanup（从 sessions_ map 移除自身），会导致在回调栈中销毁自身。通过 `boost::asio::post()` 延迟到当前回调返回后执行。
-
-### RELAY_ONLY 模式
-
-```cpp
-cfg.relay_mode = p2p::core::RelayMode::RELAY_ONLY;
-```
-
-BTO 不使用 STUN/hole-punching，所有流量经 Relay 中转。这简化了网络配置，确保在严格 NAT 环境下也能工作。
-
-## 命令分发流程
-
-```
-main()
-  ├─ parse_arguments(argc, argv) → Command
-  ├─ help? → show_help(topic) → exit 0
-  ├─ version? → show_version() → exit 0
-  ├─ Config::load(~/.bto/config.toml) → config
-  ├─ 命令行覆盖 (--did, --relay)
-  └─ 分发:
-       connect  → cmd_connect() → ConnectBridge → ioc.run()
-       list     → cmd_list()    → 打印 peers 表
-       status   → cmd_status()  → 打印 DID/Relay/Peers 摘要
-       config   → cmd_config()  → 打印配置文件内容
-       add      → cmd_add()     → 修改 config → save()
-       remove   → cmd_remove()  → 修改 config → save()
-       ping     → cmd_ping()    → TCP 连接 relay → 发 PING → 读响应
-```
-
-## 外部依赖
-
-| 依赖 | 用途 | 来源 |
-|------|------|------|
-| PeerLink (p2p_core 等) | P2P 通信 | `../p2p-cpp/` |
-| Boost.Asio | 异步 I/O | 系统安装 |
-| spdlog / fmt | 日志（PeerLink 依赖） | 系统安装 |
-| Protobuf | P2P 协议序列化 | 系统安装 |
-| GoogleTest | 单元测试 | 系统安装 |
+- 当前 daemon socket: `~/.peerlink/run/peerlinkd.sock`
+- 当前配置文件: `~/.bto/config.toml`
+- 所有 PeerLink 通道仍使用 `RELAY_ONLY`
+- 当一个目标没有引用会话且没有活动隧道时，daemon 会延迟回收对应连接
+- 若客户端异常退出，未显式关闭的 session 会由 daemon 的租约超时兜底回收

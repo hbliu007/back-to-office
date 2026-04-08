@@ -243,6 +243,10 @@ TEST(Commands, AddBasic) {
 
 TEST(Commands, AddWithAllOptions) {
     IsolatedHome env;
+    env.write_config(R"(
+did = "home-mac"
+relay = "relay:9700"
+)");
     auto r = exec_bto("add mybox --did custom-did --user root --key /tmp/key",
                        env.home());
 
@@ -256,6 +260,7 @@ TEST(Commands, AddWithAllOptions) {
     EXPECT_NE(content.find("custom-did"), std::string::npos);
     EXPECT_NE(content.find("root"), std::string::npos);
     EXPECT_NE(content.find("/tmp/key"), std::string::npos);
+    EXPECT_NE(content.find("did = \"home-mac\""), std::string::npos);
 }
 
 TEST(Commands, AddNoName) {
@@ -353,6 +358,48 @@ TEST(Commands, ConnectNoRelay) {
     EXPECT_EQ(r.exit_code, 2);  // CONFIG
 }
 
+TEST(Commands, UpgradeNoTarget) {
+    IsolatedHome env;
+    env.write_config("did = \"test\"\nrelay = \"host:9700\"");
+
+    auto r = exec_bto("upgrade", env.home());
+
+    EXPECT_EQ(r.exit_code, 1);
+}
+
+TEST(Commands, UpgradeNoRelay) {
+    IsolatedHome env;
+    env.write_config("did = \"test\"");
+
+    auto r = exec_bto("upgrade office-213", env.home());
+
+    EXPECT_EQ(r.exit_code, 2);
+}
+
+TEST(Commands, PsNoDaemon) {
+    IsolatedHome env;
+    auto r = exec_bto("ps", env.home());
+
+    EXPECT_EQ(r.exit_code, 0);
+    EXPECT_NE(r.output.find("peerlinkd"), std::string::npos);
+}
+
+TEST(Commands, DaemonStatusNoDaemon) {
+    IsolatedHome env;
+    auto r = exec_bto("daemon status", env.home());
+
+    EXPECT_EQ(r.exit_code, 0);
+    EXPECT_NE(r.output.find("peerlinkd"), std::string::npos);
+}
+
+TEST(Commands, CloseNoDaemon) {
+    IsolatedHome env;
+    auto r = exec_bto("close office-213", env.home());
+
+    EXPECT_EQ(r.exit_code, 3);
+    EXPECT_NE(r.output.find("peerlinkd"), std::string::npos);
+}
+
 // ═══════════════════════════════════════════════════════════════
 //  未知命令
 // ═══════════════════════════════════════════════════════════════
@@ -377,6 +424,15 @@ TEST(Commands, HelpConnect) {
     EXPECT_EQ(r.exit_code, 0);
     EXPECT_NE(r.output.find("connect"), std::string::npos);
     EXPECT_NE(r.output.find("--listen"), std::string::npos);
+}
+
+TEST(Commands, HelpUpgrade) {
+    IsolatedHome env;
+    auto r = exec_bto("help upgrade", env.home());
+
+    EXPECT_EQ(r.exit_code, 0);
+    EXPECT_NE(r.output.find("upgrade"), std::string::npos);
+    EXPECT_NE(r.output.find("--artifact"), std::string::npos);
 }
 
 TEST(Commands, HelpErrors) {

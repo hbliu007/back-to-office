@@ -35,5 +35,7 @@ struct Config {
 };
 
 auto default_config_path() -> std::string;
+auto default_runtime_dir() -> std::string;
+auto default_daemon_socket_path() -> std::string;
 
 }  // namespace bto::config

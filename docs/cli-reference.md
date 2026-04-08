@@ -13,21 +13,43 @@ bto [命令] [参数] [选项]
 ### connect — 连接远端设备
 
 ```bash
-bto connect <peer> [--listen <port>] [--did <did>] [--relay <host:port>]
+bto connect <peer> [--listen <port>] [--did <did>] [--relay <host:port>] [--legacy-direct]
 bto <peer>          # 快捷方式
 ```
 
 - `<peer>` 支持模糊匹配（精确 → 后缀 → 前缀）
-- 启动后监听本地端口（默认 2222），等待 SSH 连入
-- 每个 SSH 连入创建独立 P2P 隧道（多会话并发）
-- Ctrl+C 优雅退出
+- 默认通过本机 `peerlinkd` 自动申请或复用本地端口
+- `bto` 会自动拉起当前终端的 `ssh`
+- 仅当显式传入 `--listen` 时，才要求 daemon 绑定固定端口
+- `--legacy-direct` 回退到旧版单进程模式
 
 示例：
 ```bash
-bto connect office-213              # 完整写法
-bto 213                             # 快捷：后缀匹配
-bto 213 --listen 3333               # 自定义端口
+bto connect office-213                 # 完整写法
+bto 213                                # 快捷：后缀匹配
+bto 213 --listen 3333                  # 请求固定本地端口
 bto connect 213 --relay 10.0.0.1:9700  # 指定 relay
+bto connect 213 --legacy-direct        # 回退旧版模式
+```
+
+### ps — 查看 daemon 连接
+
+```bash
+bto ps
+```
+
+### close — 关闭目标桥接
+
+```bash
+bto close <peer>
+```
+
+### daemon — 管理本机 peerlinkd
+
+```bash
+bto daemon status
+bto daemon start
+bto daemon stop
 ```
 
 ### list — 列出已配置设备
@@ -121,7 +143,8 @@ bto version
 |------|------|----------|
 | `--did <did>` | 覆盖本机 DID | connect |
 | `--relay <host:port>` | 覆盖 Relay 地址 | connect, ping |
-| `--listen <port>` | 本地监听端口 (默认 2222) | connect |
+| `--listen <port>` | 显式请求本地监听端口 | connect |
+| `--legacy-direct` | 跳过 daemon，回退旧模式 | connect |
 | `--user <user>` | SSH 用户名 | add |
 | `--key <path>` | SSH 私钥路径 | add |
 | `--help, -h` | 显示帮助 | 全局 |

@@ -32,6 +32,15 @@ auto default_config_path() -> std::string {
     return std::string(home ? home : ".") + "/.bto/config.toml";
 }
 
+auto default_runtime_dir() -> std::string {
+    const char* home = std::getenv("HOME");
+    return std::string(home ? home : ".") + "/.peerlink/run";
+}
+
+auto default_daemon_socket_path() -> std::string {
+    return default_runtime_dir() + "/peerlinkd.sock";
+}
+
 auto Config::load(const std::string& path) -> std::optional<Config> {
     std::ifstream file(path);
     if (!file.is_open()) return std::nullopt;
