@@ -131,19 +131,42 @@ auto run_remote_upgrade(const UpgradeRequest& request) -> UpgradeResult {
     auto client = std::make_shared<p2p::core::P2PClient>(io_context, request.local_did, cfg);
     auto mailbox = std::make_shared<ControlMailbox>();
 
-    client->on_data([mailbox](int channel_id, const std::vector<uint8_t>& data) {
-        if (channel_id != kUpgradeControlChannel) {
-            return;
-        }
-        auto frame = p2p::protocol::decode_upgrade_control_frame(data);
-        if (frame.has_value()) {
-            mailbox->push(*frame);
-        }
-    });
+    auto attach_mailbox = [&](const std::shared_ptr<p2p::core::P2PClient>& current_client) {
+        current_client->on_data([mailbox](int channel_id, const std::vector<uint8_t>& data) {
+            if (channel_id != kUpgradeControlChannel) {
+                return;
+            }
+            auto frame = p2p::protocol::decode_upgrade_control_frame(data);
+            if (frame.has_value()) {
+                mailbox->push(*frame);
+            }
+        });
+    };
+    attach_mailbox(client);
 
     auto stop_io = [&]() {
         io_runner.shutdown();
         spdlog::info("[bto upgrade] P2P io worker stopped");
+    };
+
+    auto rebuild_connected_client = [&]() -> std::error_code {
+        if (client) {
+            client->close();
+        }
+        client = std::make_shared<p2p::core::P2PClient>(io_context, request.local_did, cfg);
+        attach_mailbox(client);
+
+        auto ec = wait_for_callback_timeout(
+            [&](auto cb) { client->initialize(std::move(cb)); },
+            kP2pInitializeTimeout,
+            [&]() { client->close(); });
+        if (ec) {
+            return ec;
+        }
+        return wait_for_callback_timeout(
+            [&](auto cb) { client->connect(request.target_did, std::move(cb)); },
+            kP2pConnectTimeout,
+            [&]() { client->close(); });
     };
 
     auto init_ec = wait_for_callback_timeout(
@@ -348,9 +371,11 @@ auto run_remote_upgrade(const UpgradeRequest& request) -> UpgradeResult {
             [&](auto cb) { client->send_data(kUpgradeControlChannel, status_payload, std::move(cb)); },
             kP2pSendTimeout);
         if (send_status_ec) {
-            (void)wait_for_callback_timeout(
-                [&](auto cb) { client->connect(request.target_did, std::move(cb)); },
-                kApplyReconnectTimeout);
+            const auto rebuild_ec = rebuild_connected_client();
+            if (rebuild_ec && rebuild_ec != std::errc::timed_out) {
+                spdlog::warn("[bto upgrade] reconnect after apply status send failed: {}",
+                             rebuild_ec.message());
+            }
             std::this_thread::sleep_for(kApplyStatusPollInterval);
             continue;
         }
