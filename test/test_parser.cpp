@@ -242,6 +242,7 @@ TEST(Parser, UpgradeAllOptions) {
     Args a{"bto", "upgrade", "office-213",
            "--artifact", "p2p-tunnel-server",
            "--live-binary", "/usr/local/bin/p2p-tunnel-server",
+           "--remote-ssh-host", "192.0.2.213",
            "--activate-command", "systemctl restart peerlink-tunnel",
            "--rollback-command", "systemctl restart peerlink-tunnel",
            "--health-command", "systemctl is-active peerlink-tunnel",
@@ -251,10 +252,19 @@ TEST(Parser, UpgradeAllOptions) {
     EXPECT_EQ(cmd.name, "upgrade");
     EXPECT_EQ(cmd.artifact_name, "p2p-tunnel-server");
     EXPECT_EQ(cmd.live_binary, "/usr/local/bin/p2p-tunnel-server");
+    EXPECT_EQ(cmd.remote_ssh_host, "192.0.2.213");
     EXPECT_EQ(cmd.activate_command, "systemctl restart peerlink-tunnel");
     EXPECT_EQ(cmd.rollback_command, "systemctl restart peerlink-tunnel");
     EXPECT_EQ(cmd.health_command, "systemctl is-active peerlink-tunnel");
     EXPECT_EQ(cmd.timeout_seconds, 45u);
+}
+
+TEST(Parser, UpgradeForceAndSkipFlags) {
+    Args a{"bto", "upgrade", "office-215", "--force-download", "--skip-remote-check"};
+    auto cmd = bto::cli::parse_arguments(a.argc(), a.argv());
+    EXPECT_EQ(cmd.name, "upgrade");
+    EXPECT_TRUE(cmd.force_download);
+    EXPECT_TRUE(cmd.skip_remote_version_check);
 }
 
 TEST(Parser, UpgradeInvalidTimeoutFallsBack) {

@@ -86,6 +86,7 @@ auto Config::load(const std::string& path) -> std::optional<Config> {
             if (key == "did") config.peers[current_peer].did = value;
             else if (key == "user") config.peers[current_peer].user = value;
             else if (key == "key") config.peers[current_peer].key = value;
+            else if (key == "host") config.peers[current_peer].host = value;
             else if (key == "port") {
                 try { config.peers[current_peer].port =
                           static_cast<uint16_t>(std::stoi(value)); }
@@ -110,6 +111,7 @@ auto Config::save(const std::string& path) const -> bool {
         file << "  did = \"" << peer.did << "\"\n";
         if (!peer.user.empty()) file << "  user = \"" << peer.user << "\"\n";
         if (!peer.key.empty())  file << "  key = \"" << peer.key << "\"\n";
+        if (!peer.host.empty()) file << "  host = \"" << peer.host << "\"\n";
         if (peer.port != 22)    file << "  port = " << peer.port << "\n";
     }
 

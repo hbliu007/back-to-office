@@ -2,6 +2,7 @@
 
 #include "upgrade/manifest_client.hpp"
 
+#include <cstdlib>
 #include <filesystem>
 #include <fstream>
 #include <chrono>
@@ -30,6 +31,31 @@ public:
 
 private:
     fs::path path_;
+};
+
+class EnvVarGuard {
+public:
+    explicit EnvVarGuard(const char* key)
+        : key_(key) {
+        const char* value = std::getenv(key_);
+        if (value) {
+            had_original_ = true;
+            original_ = value;
+        }
+    }
+
+    ~EnvVarGuard() {
+        if (had_original_) {
+            setenv(key_, original_.c_str(), 1);
+        } else {
+            unsetenv(key_);
+        }
+    }
+
+private:
+    const char* key_;
+    bool had_original_ = false;
+    std::string original_;
 };
 
 }  // namespace
@@ -74,4 +100,54 @@ TEST(ManifestClient, DownloadsArtifactFromFileUrl) {
     std::string error;
     ASSERT_TRUE(client.download_artifact(entry, output, &error)) << error;
     EXPECT_TRUE(fs::exists(output));
+}
+
+TEST(ManifestClient, RejectsInvalidArtifactName) {
+    TempDir temp;
+    bto::upgrade::ManifestClient client(
+        "file://" + (temp.path() / "manifest.json").string(),
+        "file://" + temp.path().string());
+
+    bto::upgrade::ArtifactManifestEntry entry;
+    entry.name = "../bad";
+
+    std::string error;
+    EXPECT_FALSE(client.download_artifact(entry, temp.path() / "out" / "bad", &error));
+    EXPECT_NE(error.find("invalid artifact name"), std::string::npos);
+}
+
+TEST(ManifestClient, RejectsCustomInsecureHttpWithoutOverride) {
+    EnvVarGuard allow_http("BTO_ALLOW_INSECURE_HTTP_UPGRADE");
+    unsetenv("BTO_ALLOW_INSECURE_HTTP_UPGRADE");
+
+    bto::upgrade::ManifestClient client(
+        "http://example.com/api/binaries/manifest",
+        "http://example.com/api/binaries");
+
+    std::string error;
+    EXPECT_FALSE(client.fetch_manifest(&error).has_value());
+    EXPECT_NE(error.find("refusing insecure HTTP download"), std::string::npos);
+}
+
+TEST(ManifestClient, RejectsUnsupportedSchemeWithoutOverride) {
+    bto::upgrade::ManifestClient client(
+        "ftp://example.com/api/binaries/manifest",
+        "ftp://example.com/api/binaries");
+
+    std::string error;
+    EXPECT_FALSE(client.fetch_manifest(&error).has_value());
+    EXPECT_NE(error.find("unsupported manifest/artifact URL scheme"), std::string::npos);
+}
+
+TEST(ManifestClient, RejectsDefaultInsecureHttpWithoutOverride) {
+    EnvVarGuard allow_http("BTO_ALLOW_INSECURE_HTTP_UPGRADE");
+    unsetenv("BTO_ALLOW_INSECURE_HTTP_UPGRADE");
+
+    bto::upgrade::ManifestClient client(
+        "http://47.99.216.25:8082/api/binaries/manifest",
+        "http://47.99.216.25:8082/api/binaries");
+
+    std::string error;
+    EXPECT_FALSE(client.fetch_manifest(&error).has_value());
+    EXPECT_NE(error.find("refusing insecure HTTP download"), std::string::npos);
 }

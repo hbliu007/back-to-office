@@ -18,6 +18,7 @@ struct PeerConfig {
     std::string user;           // SSH 用户名（可选）
     std::string key;            // SSH 私钥路径（可选）
     uint16_t port = 22;         // SSH 端口（可选，默认 22）
+    std::string host;           // 可选，用于 upgrade 时 SSH 预检远端二进制 sha256
 };
 
 struct Config {

@@ -2,6 +2,7 @@
 
 #include <nlohmann/json.hpp>
 
+#include <cerrno>
 #include <cstdlib>
 #include <fstream>
 #include <sys/wait.h>
@@ -15,6 +16,28 @@ using Json = nlohmann::json;
 
 namespace {
 
+auto wait_for_child(pid_t pid, int* status, std::string* error) -> bool {
+    for (;;) {
+        const auto rc = waitpid(pid, status, 0);
+        if (rc >= 0) {
+            return true;
+        }
+        if (errno == EINTR) {
+            continue;
+        }
+        if (error) {
+            *error = "waitpid failed";
+        }
+        return false;
+    }
+}
+
+auto close_pipe_end(int fd) -> void {
+    if (fd >= 0) {
+        close(fd);
+    }
+}
+
 auto env_or_default(const char* key, const std::string& fallback) -> std::string {
     const char* value = std::getenv(key);
     return value ? std::string(value) : fallback;
@@ -23,8 +46,16 @@ auto env_or_default(const char* key, const std::string& fallback) -> std::string
 constexpr const char* kDefaultManifestUrl = "http://47.99.216.25:8082/api/binaries/manifest";
 constexpr const char* kDefaultBinariesBaseUrl = "http://47.99.216.25:8082/api/binaries";
 
+auto is_https_url(const std::string& url) -> bool {
+    return url.rfind("https://", 0) == 0;
+}
+
 auto is_insecure_http(const std::string& url) -> bool {
     return url.rfind("http://", 0) == 0;
+}
+
+auto is_file_url(const std::string& url) -> bool {
+    return url.rfind("file://", 0) == 0;
 }
 
 auto insecure_http_allowed() -> bool {
@@ -33,16 +64,26 @@ auto insecure_http_allowed() -> bool {
 }
 
 auto validate_url_policy(const std::string& url, std::string* error) -> bool {
-    const bool default_http =
-        url == kDefaultManifestUrl || url == kDefaultBinariesBaseUrl ||
-        url.rfind(std::string(kDefaultBinariesBaseUrl) + "/", 0) == 0;
-    if (is_insecure_http(url) && !default_http && !insecure_http_allowed()) {
+    if (is_https_url(url) || is_file_url(url)) {
+        return true;
+    }
+    if (is_insecure_http(url) && insecure_http_allowed()) {
+        return true;
+    }
+    if (is_insecure_http(url)) {
         if (error) {
             *error = "refusing insecure HTTP download; use HTTPS or set BTO_ALLOW_INSECURE_HTTP_UPGRADE=1";
         }
         return false;
     }
-    return true;
+    if (error) {
+        *error = "unsupported manifest/artifact URL scheme; use HTTPS or file://";
+    }
+    return false;
+}
+
+auto redirect_protocol_policy() -> const char* {
+    return insecure_http_allowed() ? "=https,http" : "=https";
 }
 
 auto validate_artifact_name(const std::string& name, std::string* error) -> bool {
@@ -110,8 +151,16 @@ auto curl_to_string(const std::string& url, std::string* error) -> std::optional
         dup2(pipefd[1], STDOUT_FILENO);
         close(pipefd[0]);
         close(pipefd[1]);
-        execlp("curl", "curl", "-fsSL", url.c_str(), nullptr);
+        execlp("curl", "curl", "-fsSL", "--proto-redir", redirect_protocol_policy(), url.c_str(), nullptr);
         _exit(127);
+    }
+    if (pid < 0) {
+        close_pipe_end(pipefd[0]);
+        close_pipe_end(pipefd[1]);
+        if (error) {
+            *error = "fork failed";
+        }
+        return std::nullopt;
     }
 
     close(pipefd[1]);
@@ -124,7 +173,9 @@ auto curl_to_string(const std::string& url, std::string* error) -> std::optional
     close(pipefd[0]);
 
     int status = 0;
-    waitpid(pid, &status, 0);
+    if (!wait_for_child(pid, &status, error)) {
+        return std::nullopt;
+    }
     if (!WIFEXITED(status) || WEXITSTATUS(status) != 0) {
         if (error) {
             *error = output.empty() ? "curl failed" : output;
@@ -144,12 +195,28 @@ auto curl_to_file(const std::string& url, const std::filesystem::path& output_pa
 
     pid_t pid = fork();
     if (pid == 0) {
-        execlp("curl", "curl", "-fsSL", url.c_str(), "-o", output_path.c_str(), nullptr);
+        execlp("curl",
+               "curl",
+               "-fsSL",
+               "--proto-redir",
+               redirect_protocol_policy(),
+               url.c_str(),
+               "-o",
+               output_path.c_str(),
+               nullptr);
         _exit(127);
+    }
+    if (pid < 0) {
+        if (error) {
+            *error = "fork failed";
+        }
+        return false;
     }
 
     int status = 0;
-    waitpid(pid, &status, 0);
+    if (!wait_for_child(pid, &status, error)) {
+        return false;
+    }
     if (!WIFEXITED(status) || WEXITSTATUS(status) != 0) {
         if (error) {
             *error = "curl download failed";

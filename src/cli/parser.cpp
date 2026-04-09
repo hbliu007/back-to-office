@@ -127,6 +127,15 @@ auto parse_arguments(int argc, char* argv[]) -> Command {
                 std::cerr << "警告: --timeout-seconds 格式错误，使用默认 30\n";
             }
         }
+        else if (arg == "--remote-ssh-host" && i + 1 < args.size()) {
+            cmd.remote_ssh_host = args[++i];
+        }
+        else if (arg == "--force-download") {
+            cmd.force_download = true;
+        }
+        else if (arg == "--skip-remote-check") {
+            cmd.skip_remote_version_check = true;
+        }
         else if (arg == "--legacy-direct") {
             cmd.legacy_direct = true;
         }
@@ -233,14 +242,25 @@ void help_upgrade() {
         "用法:\n"
         "  bto upgrade <peer> [选项]\n"
         "\n"
+        "版本与下载:\n"
+        "  • 拉取阿里云 manifest（version / git_commit / 各制品 sha256）\n"
+        "  • 若配置 peers.<name>.host 或 --remote-ssh-host：SSH 预检远端 live-binary\n"
+        "    的 sha256；与 manifest 一致时打印命中提示，并继续统一的升级/健康验证路径\n"
+        "  • 否则若本地缓存文件（临时目录 peerlink-upgrades/<制品>）与 manifest\n"
+        "    一致则跳过从阿里云下载，仍会通过 P2P 推送\n"
+        "  • --force-download 强制重新从阿里云下载（忽略本地缓存命中）\n"
+        "  • --skip-remote-check 跳过 SSH 远端预检\n"
+        "\n"
         "默认行为:\n"
-        "  • 从阿里云 manifest 读取最新制品信息\n"
-        "  • 默认推送 p2p-tunnel-server\n"
+        "  • 默认制品 p2p-tunnel-server，远端路径 /usr/local/bin/p2p-tunnel-server\n"
         "  • 传输完成后在远端执行 apply\n"
         "\n"
         "选项:\n"
         "  --artifact <name>          制品名（默认 p2p-tunnel-server）\n"
         "  --live-binary <path>       远端目标路径\n"
+        "  --remote-ssh-host <host>   覆盖配置文件中的 host，用于 SSH 预检\n"
+        "  --force-download           忽略本地缓存，强制从阿里云下载\n"
+        "  --skip-remote-check        不对远端做 sha256sum 预检\n"
         "  --activate-command <cmd>   替换后二次激活命令\n"
         "  --rollback-command <cmd>   回滚后二次激活命令\n"
         "  --health-command <cmd>     健康检查命令\n"
@@ -286,7 +306,7 @@ void help_config() {
         "\n"
         "配置文件格式:\n"
         "  did = \"home-mac\"              # 本机 DID\n"
-        "  relay = \"47.99.216.25:9700\"   # Relay 服务器\n"
+        "  relay = \"relay.example.com:9700\"   # Relay 服务器\n"
         "\n"
         "  [peers.office-213]             # 设备配置\n"
         "    did = \"office-213\"\n"

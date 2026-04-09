@@ -50,6 +50,8 @@ add_library(bto_runtime STATIC
     src/daemon/daemon_client.cpp
     src/upgrade/manifest_client.cpp
     src/upgrade/upgrade_client.cpp
+    src/upgrade/upgrade_precheck.cpp
+    src/util/io_context_thread.cpp
 )
 
 add_executable(bto

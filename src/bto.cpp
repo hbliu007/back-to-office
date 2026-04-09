@@ -14,6 +14,7 @@
 #include "p2p/core/artifact_transfer.hpp"
 #include "upgrade/manifest_client.hpp"
 #include "upgrade/upgrade_client.hpp"
+#include "upgrade/upgrade_precheck.hpp"
 
 #include <algorithm>
 #include <atomic>
@@ -46,6 +47,8 @@ struct ResolvedTarget {
     std::string did;
     std::string user;
     std::string key;
+    std::string ssh_host;
+    uint16_t ssh_port = 22;
     bool from_config = false;
 };
 
@@ -142,6 +145,8 @@ auto resolve_target(const bto::config::Config& config, const std::string& input)
     target.did = resolved->second.did;
     target.user = resolved->second.user.empty() ? default_ssh_user() : resolved->second.user;
     target.key = resolved->second.key;
+    target.ssh_host = resolved->second.host;
+    target.ssh_port = resolved->second.port;
     target.from_config = true;
     return target;
 }
@@ -180,7 +185,23 @@ auto default_upgrade_defaults(const bto::cli::Command& cmd) -> UpgradeDefaults {
     return defaults;
 }
 
-auto spawn_ssh_process(const std::string& user, const std::string& key, uint16_t port)
+auto insecure_ssh_connect_allowed() -> bool {
+    const char* value = std::getenv("BTO_ALLOW_INSECURE_SSH_CONNECT");
+    return value && std::string(value) == "1";
+}
+
+auto ssh_known_hosts_path() -> std::string {
+    const auto known_hosts =
+        std::filesystem::path(bto::config::default_config_path()).parent_path() / "known_hosts";
+    std::error_code ec;
+    std::filesystem::create_directories(known_hosts.parent_path(), ec);
+    return known_hosts.string();
+}
+
+auto spawn_ssh_process(const std::string& user,
+                       const std::string& key,
+                       uint16_t port,
+                       const std::string& host_key_alias)
     -> std::optional<pid_t> {
     pid_t pid = fork();
     if (pid == 0) {
@@ -188,10 +209,21 @@ auto spawn_ssh_process(const std::string& user, const std::string& key, uint16_t
         std::vector<char*> argv;
 
         storage.emplace_back("ssh");
-        storage.emplace_back("-o");
-        storage.emplace_back("StrictHostKeyChecking=no");
-        storage.emplace_back("-o");
-        storage.emplace_back("UserKnownHostsFile=/dev/null");
+        if (insecure_ssh_connect_allowed()) {
+            storage.emplace_back("-o");
+            storage.emplace_back("StrictHostKeyChecking=no");
+            storage.emplace_back("-o");
+            storage.emplace_back("UserKnownHostsFile=/dev/null");
+        } else {
+            storage.emplace_back("-o");
+            storage.emplace_back("StrictHostKeyChecking=accept-new");
+            storage.emplace_back("-o");
+            storage.emplace_back("UserKnownHostsFile=" + ssh_known_hosts_path());
+            if (!host_key_alias.empty()) {
+                storage.emplace_back("-o");
+                storage.emplace_back("HostKeyAlias=" + host_key_alias);
+            }
+        }
         storage.emplace_back("-o");
         storage.emplace_back("LogLevel=ERROR");
         storage.emplace_back("-p");
@@ -231,8 +263,11 @@ auto wait_for_child(pid_t pid) -> int {
     return EC::NETWORK;
 }
 
-auto run_ssh(const std::string& user, const std::string& key, uint16_t port) -> int {
-    auto pid = spawn_ssh_process(user, key, port);
+auto run_ssh(const std::string& user,
+             const std::string& key,
+             uint16_t port,
+             const std::string& host_key_alias) -> int {
+    auto pid = spawn_ssh_process(user, key, port, host_key_alias);
     if (!pid) {
         return EC::NETWORK;
     }
@@ -346,7 +381,11 @@ auto try_connect_daemon(const bto::cli::Command& cmd, const bto::config::Config&
               << " Relay=" << relay_host << ":" << relay_port
               << " 本地端口=" << local_port << std::endl;
 
-    const int ssh_exit = run_ssh(ssh_user.empty() ? default_ssh_user() : ssh_user, ssh_key, local_port);
+    const int ssh_exit = run_ssh(
+        ssh_user.empty() ? default_ssh_user() : ssh_user,
+        ssh_key,
+        local_port,
+        target.did);
 
     if (!session_id.empty()) {
         try {
@@ -411,7 +450,7 @@ int cmd_connect_legacy(const bto::cli::Command& cmd, bto::config::Config& config
             return;
         }
         ssh_started = true;
-        auto pid = spawn_ssh_process(target.user, target.key, cmd.listen_port);
+        auto pid = spawn_ssh_process(target.user, target.key, cmd.listen_port, target.did);
         if (!pid) {
             exit_code = EC::NETWORK;
             ioc.stop();
@@ -616,7 +655,7 @@ int cmd_config() {
                   << "  mkdir -p ~/.bto\n"
                   << "  cat > ~/.bto/config.toml << 'EOF'\n"
                   << "  did = \"my-device\"\n"
-                  << "  relay = \"47.99.216.25:9700\"\n"
+                  << "  relay = \"relay.bto.asia:9700\"\n"
                   << "\n"
                   << "  [peers.office-213]\n"
                   << "    did = \"office-213\"\n"
@@ -756,9 +795,14 @@ int cmd_upgrade(const bto::cli::Command& cmd, const bto::config::Config& config)
         return EC::USAGE;
     }
 
-    bto::upgrade::ManifestClient manifest_client(
-        bto::upgrade::default_manifest_url(),
-        bto::upgrade::default_binaries_base_url());
+    const auto manifest_url = bto::upgrade::default_manifest_url();
+    const auto binaries_url = bto::upgrade::default_binaries_base_url();
+    if (manifest_url.rfind("http://", 0) == 0 || binaries_url.rfind("http://", 0) == 0) {
+        std::cout << "警告: 当前升级源使用 HTTP，默认安全策略会拒绝明文升级；"
+                     "如需临时继续，请显式设置 BTO_ALLOW_INSECURE_HTTP_UPGRADE=1。\n";
+    }
+
+    bto::upgrade::ManifestClient manifest_client(manifest_url, binaries_url);
     std::string error;
     auto manifest = manifest_client.fetch_manifest(&error);
     if (!manifest.has_value()) {
@@ -774,23 +818,67 @@ int cmd_upgrade(const bto::cli::Command& cmd, const bto::config::Config& config)
         return EC::CONFIG;
     }
 
+    if (it->name.empty() || it->name.find('/') != std::string::npos ||
+        it->name.find('\\') != std::string::npos || it->name.find("..") != std::string::npos ||
+        it->name.find('"') != std::string::npos || it->name.find('\'') != std::string::npos) {
+        std::cerr << "manifest 制品名非法: " << it->name << "\n";
+        return EC::CONFIG;
+    }
+
     auto download_root = std::filesystem::temp_directory_path() / "peerlink-upgrades";
     auto download_path = download_root / it->name;
-    if (!manifest_client.download_artifact(*it, download_path, &error)) {
-        std::cerr << "下载制品失败: " << error << "\n";
-        return EC::NETWORK;
+    std::filesystem::create_directories(download_root);
+
+    std::cout << "manifest 最新: version=" << manifest->version
+              << " git_commit=" << manifest->git_commit
+              << " build_time=" << manifest->build_time << "\n";
+
+    const std::string remote_host =
+        !cmd.remote_ssh_host.empty() ? cmd.remote_ssh_host : target.ssh_host;
+
+    if (!cmd.skip_remote_version_check && !remote_host.empty()) {
+        std::string rerr;
+        const auto remote_hash = bto::upgrade::remote_live_binary_sha256(
+            remote_host, target.ssh_port, target.user, target.key, defaults.live_binary, &rerr);
+        if (remote_hash.has_value()) {
+            if (bto::upgrade::normalize_sha256_hex(*remote_hash) ==
+                bto::upgrade::normalize_sha256_hex(it->sha256)) {
+                std::cout << "远端 " << target.did
+                          << " 已匹配 manifest 制品 sha256，但仍继续执行升级/健康验证路径。\n";
+            } else {
+                std::cout << "远端当前 sha256=" << *remote_hash << "，与 manifest 不一致，继续升级。\n";
+            }
+        } else {
+            std::cout << "远端 sha256 预检未成功（" << rerr << "），继续下载/推送。\n";
+        }
+    } else if (!cmd.skip_remote_version_check && remote_host.empty()) {
+        std::cout << "提示: 未配置 peers.<name>.host 且未指定 --remote-ssh-host，跳过远端预检；"
+                     "仅比对本地缓存与 manifest。\n";
+    }
+
+    bool need_download = true;
+    if (!cmd.force_download && bto::upgrade::local_artifact_matches_manifest(download_path, *it)) {
+        std::cout << "本地缓存与 manifest 一致，跳过从阿里云下载。\n";
+        need_download = false;
+    }
+    if (need_download) {
+        if (!manifest_client.download_artifact(*it, download_path, &error)) {
+            std::cerr << "下载制品失败: " << error << "\n";
+            return EC::NETWORK;
+        }
     }
 
     const auto digest = p2p::core::compute_artifact_sha256(download_path);
-    if (!digest.has_value() || *digest != it->sha256) {
+    if (!digest.has_value() ||
+        bto::upgrade::normalize_sha256_hex(*digest) !=
+            bto::upgrade::normalize_sha256_hex(it->sha256)) {
         std::cerr << "制品校验失败: " << it->name << "\n";
         return EC::NETWORK;
     }
 
     auto [relay_host, relay_port] = parse_relay(relay);
-    std::cout << "upgrade — 目标=" << target.did
-              << " artifact=" << it->name
-              << " version=" << manifest->version << "\n";
+    std::cout << "upgrade — 目标=" << target.did << " artifact=" << it->name
+              << " manifest_version=" << manifest->version << "\n";
 
     bto::upgrade::UpgradeRequest request;
     request.local_did = local_did;

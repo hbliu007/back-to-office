@@ -127,6 +127,23 @@ relay = "10.0.0.1:9700"
     EXPECT_EQ(b.port, 22);  // 默认
 }
 
+TEST(ConfigLoad, PeerHostField) {
+    TmpDir tmp;
+    auto path = tmp.write("config.toml", R"(
+did = "c"
+relay = "10.0.0.1:9700"
+
+[peers.office-213]
+  did = "office-213"
+  host = "192.0.2.213"
+  user = "lhb"
+)");
+
+    auto cfg = bto::config::Config::load(path);
+    ASSERT_TRUE(cfg.has_value());
+    EXPECT_EQ(cfg->peers.at("office-213").host, "192.0.2.213");
+}
+
 TEST(ConfigLoad, V0HostsCompatibility) {
     TmpDir tmp;
     auto path = tmp.write("config.toml", R"(

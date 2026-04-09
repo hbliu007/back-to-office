@@ -42,12 +42,15 @@ struct Command {
     std::string activate_command; // --activate-command (for upgrade)
     std::string rollback_command; // --rollback-command (for upgrade)
     std::string health_command; // --health-command (for upgrade)
+    std::string remote_ssh_host; // --remote-ssh-host (upgrade preflight)
     uint16_t listen_port = 2222;
     uint32_t timeout_seconds = 30;
     bool version = false;
     bool help    = false;
     bool legacy_direct = false;
     bool listen_port_explicit = false;
+    bool force_download = false;           // --force-download
+    bool skip_remote_version_check = false; // --skip-remote-check
 };
 
 auto parse_arguments(int argc, char* argv[]) -> Command;
