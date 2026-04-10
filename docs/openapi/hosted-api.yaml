@@ -1,0 +1,569 @@
+openapi: 3.0.3
+info:
+  title: BTO Hosted Control Plane API
+  version: 0.1.0
+  description: |
+    HTTPS JSON API for hosted-first BTO (auth, devices, claim codes, session grants, manifests).
+    Base URL is deployment-specific; clients use env `BTO_API_BASE` (e.g. `https://api.example.com`).
+
+servers:
+  - url: https://api.example.com
+
+tags:
+  - name: auth
+  - name: devices
+  - name: claim
+  - name: sessions
+  - name: manifest
+
+paths:
+  /v1/auth/login:
+    post:
+      tags: [auth]
+      summary: Exchange user credentials for tokens
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /v1/auth/refresh:
+    post:
+      tags: [auth]
+      summary: Refresh access token
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [refresh_token]
+              properties:
+                refresh_token:
+                  type: string
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /v1/me:
+    get:
+      tags: [auth]
+      summary: Current user profile
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /v1/devices:
+    get:
+      tags: [devices]
+      summary: List devices
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [devices]
+                properties:
+                  devices:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Device'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+    post:
+      tags: [devices]
+      summary: Create device (returns claim material)
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [display_name]
+              properties:
+                display_name:
+                  type: string
+                  pattern: '^[a-zA-Z0-9][a-zA-Z0-9._-]{0,63}$'
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DeviceCreateResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /v1/devices/{device_id}:
+    parameters:
+      - $ref: '#/components/parameters/DeviceId'
+    get:
+      tags: [devices]
+      summary: Get device
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Device'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    delete:
+      tags: [devices]
+      summary: Remove device
+      security:
+        - bearerAuth: []
+      responses:
+        '204':
+          description: No content
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /v1/devices/{device_id}/claim:
+    post:
+      tags: [claim]
+      summary: Re-issue claim code for existing device
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/DeviceId'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DeviceCreateResponse'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /v1/claim/consume:
+    post:
+      tags: [claim]
+      summary: Exchange claim code for bootstrap payload (agent install)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [claim_code]
+              properties:
+                claim_code:
+                  type: string
+                  example: ABCD-EFGH
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BootstrapPayload'
+        '409':
+          description: Already consumed or revoked
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBody'
+        '410':
+          description: Expired
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBody'
+
+  /v1/sessions/connect:
+    post:
+      tags: [sessions]
+      summary: Authorize connect; returns relay + target_did grant
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [device_id]
+              properties:
+                device_id:
+                  type: string
+                display_name:
+                  type: string
+                  description: Alternative lookup when device_id unknown to client cache
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConnectGrant'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          description: Device not allowed to connect
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBody'
+
+  /v1/sessions/upgrade:
+    post:
+      tags: [sessions]
+      summary: Authorize remote agent upgrade
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [device_id]
+              properties:
+                device_id:
+                  type: string
+                artifact_channel:
+                  type: string
+                  default: stable
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UpgradeGrant'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          description: Upgrade not allowed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBody'
+
+  /v1/manifest/client:
+    get:
+      tags: [manifest]
+      summary: Client (bto) release manifest
+      parameters:
+        - name: channel
+          in: query
+          schema:
+            type: string
+            default: stable
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ClientManifest'
+
+  /v1/manifest/agent:
+    get:
+      tags: [manifest]
+      summary: Remote agent (p2p-tunnel-server) manifest
+      parameters:
+        - name: channel
+          in: query
+          schema:
+            type: string
+            default: stable
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AgentManifest'
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  parameters:
+    DeviceId:
+      name: device_id
+      in: path
+      required: true
+      schema:
+        type: string
+
+  responses:
+    Unauthorized:
+      description: Unauthorized
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorBody'
+    NotFound:
+      description: Not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorBody'
+
+  schemas:
+    ErrorBody:
+      type: object
+      required: [code, message]
+      properties:
+        code:
+          type: string
+          example: device_offline
+        message:
+          type: string
+        details:
+          type: object
+          additionalProperties: true
+
+    LoginRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          format: password
+
+    User:
+      type: object
+      required: [user_id, email]
+      properties:
+        user_id:
+          type: string
+          example: usr_123
+        email:
+          type: string
+        plan:
+          type: string
+          example: personal
+
+    AuthResponse:
+      type: object
+      required: [access_token, refresh_token, expires_at, user]
+      properties:
+        access_token:
+          type: string
+        refresh_token:
+          type: string
+        expires_at:
+          type: string
+          format: date-time
+        user:
+          $ref: '#/components/schemas/User'
+
+    Device:
+      type: object
+      required: [device_id, display_name, platform, status]
+      properties:
+        device_id:
+          type: string
+          example: dev_123
+        display_name:
+          type: string
+          example: office-213
+        platform:
+          type: string
+          enum: [linux, darwin, unknown]
+        arch:
+          type: string
+          example: aarch64
+        status:
+          type: string
+          enum: [pending, claimed, online, offline, revoked]
+        agent_version:
+          type: string
+          example: 1.2.3
+        target_did:
+          type: string
+          description: Present when claimed
+        updated_at:
+          type: string
+          format: date-time
+
+    DeviceCreateResponse:
+      type: object
+      required: [claim_code, device_id, display_name, expires_at]
+      properties:
+        claim_code:
+          type: string
+          example: ABCD-EFGH
+        device_id:
+          type: string
+        display_name:
+          type: string
+        expires_at:
+          type: string
+          format: date-time
+        install_url:
+          type: string
+          format: uri
+          description: Optional curl-friendly script URL
+
+    BootstrapPayload:
+      type: object
+      required:
+        - device_id
+        - display_name
+        - target_did
+        - bootstrap_token
+        - artifact_channel
+        - service_mode
+        - config_path
+      properties:
+        device_id:
+          type: string
+        display_name:
+          type: string
+        target_did:
+          type: string
+        bootstrap_token:
+          type: string
+        artifact_channel:
+          type: string
+        service_mode:
+          type: string
+          enum: [systemd, launchd]
+        config_path:
+          type: string
+
+    ConnectGrant:
+      type: object
+      required:
+        - session_id
+        - expires_at
+        - broker_token
+        - device_id
+        - target_did
+        - relay_host
+        - relay_port
+      properties:
+        session_id:
+          type: string
+        expires_at:
+          type: string
+          format: date-time
+        broker_token:
+          type: string
+        device_id:
+          type: string
+        target_did:
+          type: string
+        relay_host:
+          type: string
+        relay_port:
+          type: integer
+        ssh_user:
+          type: string
+        ssh_key_ref:
+          type: string
+
+    UpgradeGrant:
+      type: object
+      required:
+        - session_id
+        - expires_at
+        - device_id
+        - target_did
+      properties:
+        session_id:
+          type: string
+        expires_at:
+          type: string
+          format: date-time
+        broker_token:
+          type: string
+        device_id:
+          type: string
+        target_did:
+          type: string
+        relay_host:
+          type: string
+        relay_port:
+          type: integer
+
+    ClientManifest:
+      type: object
+      required: [version, artifacts]
+      properties:
+        version:
+          type: string
+        git_commit:
+          type: string
+        artifacts:
+          type: array
+          items:
+            type: object
+            required: [name, url, sha256]
+            properties:
+              name:
+                type: string
+                example: bto
+              url:
+                type: string
+                format: uri
+              sha256:
+                type: string
+
+    AgentManifest:
+      type: object
+      required: [version, artifacts]
+      properties:
+        version:
+          type: string
+        git_commit:
+          type: string
+        artifacts:
+          type: array
+          items:
+            type: object
+            required: [name, url, sha256]
+            properties:
+              name:
+                type: string
+                example: p2p-tunnel-server
+              url:
+                type: string
+                format: uri
+              sha256:
+                type: string

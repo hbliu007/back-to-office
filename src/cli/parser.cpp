@@ -36,7 +36,30 @@ auto parse_arguments(int argc, char* argv[]) -> Command {
         if (arg == "version") {
             cmd.version = true; return cmd;
         }
-        if (arg == "connect") {
+        if (arg == "login") {
+            cmd.name = "login";
+            if (i + 1 < args.size() && !args[i + 1].empty() && args[i + 1][0] != '-') {
+                cmd.target = args[++i];
+            }
+        }
+        else if (arg == "logout") {
+            cmd.name = "logout";
+        }
+        else if (arg == "whoami") {
+            cmd.name = "whoami";
+        }
+        else if (arg == "device") {
+            cmd.name = "device";
+            if (i + 1 < args.size() && !args[i + 1].empty() && args[i + 1][0] != '-') {
+                cmd.device_action = args[++i];
+                if ((cmd.device_action == "create" || cmd.device_action == "install" ||
+                     cmd.device_action == "remove") &&
+                    i + 1 < args.size() && !args[i + 1].empty() && args[i + 1][0] != '-') {
+                    cmd.target = args[++i];
+                }
+            }
+        }
+        else if (arg == "connect") {
             cmd.name = "connect";
             if (i + 1 < args.size() && !args[i+1].empty() && args[i+1][0] != '-')
                 cmd.target = args[++i];
@@ -130,6 +153,9 @@ auto parse_arguments(int argc, char* argv[]) -> Command {
         else if (arg == "--remote-ssh-host" && i + 1 < args.size()) {
             cmd.remote_ssh_host = args[++i];
         }
+        else if (arg == "--ssh" && i + 1 < args.size()) {
+            cmd.ssh_spec = args[++i];
+        }
         else if (arg == "--force-download") {
             cmd.force_download = true;
         }
@@ -139,7 +165,7 @@ auto parse_arguments(int argc, char* argv[]) -> Command {
         else if (arg == "--legacy-direct") {
             cmd.legacy_direct = true;
         }
-        // 快捷方式: bto <host> = bto connect <host>
+        // 快捷方式: bto <host> = bto connect <host>（不与已识别的顶层命令冲突）
         else if (cmd.name.empty() && !arg.empty() && arg[0] != '-') {
             cmd.name = "connect";
             cmd.target = arg;
@@ -157,45 +183,84 @@ namespace {
 
 void help_overview() {
     std::cout <<
-        "bto (Back-To-Office) — P2P SSH 隧道客户端\n"
+        "bto (Back-To-Office) — 托管优先的 P2P SSH 隧道客户端\n"
+        "\n"
+        "推荐路径（托管账号 + 设备）:\n"
+        "  bto login                    登录托管账号（需设置 BTO_API_BASE）\n"
+        "  bto whoami                   查看当前登录态\n"
+        "  bto logout                   清除本地登录令牌\n"
+        "  bto device list              列出托管设备\n"
+        "  bto device create <name>    创建设备并获取 claim 码\n"
+        "  bto device install <n> --ssh user@host   SSH 安装远端 agent（将接入）\n"
+        "  bto device remove <name>     移除托管设备记录\n"
+        "  bto connect <name>           连接远端（当前默认仍用 ~/.bto/config.toml；托管授权接入后同命令）\n"
+        "  bto upgrade [<name>]         升级（当前行为见 bto help upgrade；托管授权将后续接入）\n"
+        "\n"
+        "本会话管理:\n"
+        "  bto list                     列出本地 config 中的设备（兼容）\n"
+        "  bto ps / bto status          查看 peerlinkd / 配置摘要\n"
+        "  bto close <peer>             关闭本地桥接\n"
+        "  bto <peer>                   等同 connect（快捷方式）\n"
+        "\n"
+        "帮助:\n"
+        "  bto help advanced            旧版自建 relay、add/daemon 等高级用法\n"
+        "  bto help connect | device | errors\n"
+        "\n"
+        "环境:\n"
+        "  BTO_API_BASE                 托管 API 根 URL，如 https://api.example.com\n"
+        "  --version, -v / --help, -h\n";
+}
+
+void help_advanced() {
+    std::cout <<
+        "bto — 高级 / 自建 Relay（非默认新手路径）\n"
         "\n"
         "用法:\n"
-        "  bto connect <peer>           连接远端设备（支持多终端并发）\n"
-        "  bto upgrade <peer>           通过 PeerLink 推送制品并触发远端升级\n"
-        "  bto <peer>                   同上（快捷方式）\n"
-        "  bto list                     列出已配置设备\n"
-        "  bto ps                       查看 daemon 连接状态\n"
-        "  bto close <peer>             关闭指定目标的本地桥接\n"
-        "  bto add <name> [--did <d>]   添加设备\n"
-        "  bto remove <name>            移除设备\n"
-        "  bto status                   显示配置状态\n"
-        "  bto daemon <status|start|stop> 管理本机 peerlinkd\n"
-        "  bto config                   显示配置文件路径和内容\n"
-        "  bto ping                     测试 Relay 是否可达\n"
-        "  bto help [命令|errors]       查看帮助\n"
+        "  bto connect <peer> [ --did ... --relay ... --listen ... --legacy-direct ]\n"
+        "  bto upgrade <peer> [制品与 SSH 预检等选项，见 bto help upgrade ]\n"
+        "  bto add <name> [--did ...] [--user ...] [--key ...]\n"
+        "  bto remove <name>\n"
+        "  bto daemon <status|start|stop>\n"
+        "  bto config\n"
+        "  bto ping [peer]\n"
         "\n"
-        "全局选项:\n"
-        "  --did <did>          本机 DID（覆盖配置文件）\n"
-        "  --relay <host:port>  Relay 服务器地址（覆盖配置文件）\n"
+        "全局选项（节选）:\n"
+        "  --did <did>          本机 DID（覆盖 ~/.bto/config.toml）\n"
+        "  --relay <host:port>  Relay（覆盖配置）\n"
         "  --listen <port>      本地监听端口（默认 2222）\n"
-        "  --legacy-direct      跳过 daemon，回退旧版直连模式\n"
-        "  --artifact <name>    升级制品名（默认 p2p-tunnel-server）\n"
-        "  --live-binary <p>    远端生效目标路径\n"
-        "  --activate-command   替换后二次激活命令\n"
-        "  --rollback-command   回滚后二次激活命令\n"
-        "  --health-command     升级健康检查命令\n"
-        "  --timeout-seconds    升级命令超时（默认 30）\n"
-        "  --user <user>        SSH 用户名（配合 add 使用）\n"
-        "  --key <path>         SSH 私钥路径（配合 add 使用）\n"
-        "  --version, -v        显示版本\n"
-        "  --help, -h           显示帮助\n"
+        "  --legacy-direct      旧版单进程直连\n"
         "\n"
-        "快速开始:\n"
-        "  1. bto add office-213 --did office-213\n"
-        "  2. bto connect office-213\n"
-        "  3. bto ps\n"
+        "配置: ~/.bto/config.toml · 登录令牌: ~/.bto/auth.json\n";
+}
+
+void help_login() {
+    std::cout <<
+        "bto login [email] — 托管账号登录\n"
         "\n"
-        "更多帮助: bto help connect | bto help errors\n";
+        "环境变量:\n"
+        "  BTO_API_BASE           托管 API 根 URL（https://...，无末尾斜杠）\n"
+        "  BTO_LOGIN_PASSWORD     密码（勿写入 shell 历史时可仅 export 当前会话）\n"
+        "  BTO_LOGIN_EMAIL        若命令行未写 email，则用此邮箱\n"
+        "\n"
+        "示例:\n"
+        "  export BTO_API_BASE=https://api.example.com\n"
+        "  export BTO_LOGIN_PASSWORD='...'\n"
+        "  bto login user@example.com\n"
+        "\n"
+        "本地开发若使用 http://，需同时设置 BTO_ALLOW_INSECURE_HTTP_API=1。\n"
+        "契约: back-to-office/docs/openapi/hosted-api.yaml\n";
+}
+
+void help_device() {
+    std::cout <<
+        "bto device — 托管设备\n"
+        "\n"
+        "  bto device list\n"
+        "  bto device create <display_name>\n"
+        "  bto device install <display_name> --ssh user@host\n"
+        "  bto device remove <display_name>\n"
+        "\n"
+        "需已登录（~/.bto/auth.json）。API 契约见 docs/openapi/hosted-api.yaml。\n";
 }
 
 void help_connect() {
@@ -215,7 +280,7 @@ void help_connect() {
         "  --listen <port>   优先请求 daemon 使用该本地端口\n"
         "  --did <did>       本机 DID（覆盖配置）\n"
         "  --relay <h:p>     Relay 服务器（覆盖配置）\n"
-        "  --legacy-direct   使用旧版单进程模式\n"
+        "  --legacy-direct   显式使用旧版单进程模式\n"
         "\n"
         "多终端支持:\n"
         "  默认通过本机 peerlinkd 复用目标连接并分配本地监听端口。\n"
@@ -225,6 +290,7 @@ void help_connect() {
         "  bto connect office-213\n"
         "  bto 213\n"
         "  bto connect office-215 --relay relay.example.com:9700\n"
+        "  BTO_ALLOW_DAEMON_FALLBACK=1 bto connect office-213\n"
         "  bto connect office-213 --legacy-direct\n"
         "\n"
         "连接后:\n"
@@ -367,6 +433,9 @@ void help_errors() {
 
 void show_help(const std::string& topic) {
     if (topic.empty())       help_overview();
+    else if (topic == "advanced") help_advanced();
+    else if (topic == "login")    help_login();
+    else if (topic == "device")   help_device();
     else if (topic == "connect")  help_connect();
     else if (topic == "add")      help_add();
     else if (topic == "upgrade")  help_upgrade();

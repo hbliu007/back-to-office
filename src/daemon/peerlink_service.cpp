@@ -1,7 +1,10 @@
 #include "daemon/peerlink_service.hpp"
 
 #include "config/config.hpp"
+#include "daemon/session_lifecycle.hpp"
+#include "observability/error_codes.hpp"
 #include "p2p_bridge_v2.hpp"
+#include "p2p/utils/structured_log.hpp"
 
 #include <chrono>
 #include <boost/asio/steady_timer.hpp>
@@ -51,6 +54,28 @@ auto build_p2p_config(const std::string& relay_host, uint16_t relay_port)
     return cfg;
 }
 
+auto daemon_event(std::string_view component, std::string_view event) -> p2p::utils::Json {
+    return p2p::utils::make_structured_event("peerlinkd", component, event);
+}
+
+void add_request_context(p2p::utils::Json& event, const CreateSessionRequest& request) {
+    p2p::utils::put_if_not_empty(event, "trace_id", request.trace_id);
+    p2p::utils::put_if_not_empty(event, "target_name", request.target_name);
+    p2p::utils::put_if_not_empty(event, "did", request.local_did);
+    p2p::utils::put_if_not_empty(event, "peer_did", request.target_did);
+    if (!request.relay_host.empty()) {
+        event["relay"] = request.relay_host + ":" + std::to_string(request.relay_port);
+    }
+}
+
+auto error_details_for_trace(const std::string& trace_id) -> Json {
+    Json details = Json::object();
+    if (!trace_id.empty()) {
+        details["trace_id"] = trace_id;
+    }
+    return details;
+}
+
 }  // namespace
 
 class PeerlinkService::TargetConnection
@@ -78,6 +103,13 @@ public:
             build_p2p_config(request_.relay_host, request_.relay_port),
             local_port_);
         bridge_->set_ssh_hint(request_.ssh_user, request_.ssh_key);
+        bridge_->set_trace_id(request_.trace_id);
+
+        auto start_event = daemon_event("connection", "connection.starting");
+        add_request_context(start_event, request_);
+        start_event["connection_id"] = connection_id_;
+        start_event["local_port"] = local_port_;
+        p2p::utils::emit_structured_log(spdlog::level::info, std::move(start_event));
 
         auto self = shared_from_this();
         bridge_->on_ready([self]() {
@@ -86,6 +118,12 @@ public:
             }
             self->state_ = ConnectionState::Ready;
             self->last_error_.clear();
+            auto event = daemon_event("connection", "connection.ready");
+            add_request_context(event, self->request_);
+            event["connection_id"] = self->connection_id_;
+            event["local_port"] = self->local_port_;
+            event["live_tunnels"] = self->live_tunnel_count();
+            p2p::utils::emit_structured_log(spdlog::level::info, std::move(event));
             auto waiters = std::move(self->waiters_);
             self->waiters_.clear();
             for (auto& waiter : waiters) {
@@ -95,6 +133,12 @@ public:
         bridge_->on_failed([self](const std::string& message) {
             self->state_ = ConnectionState::Failed;
             self->last_error_ = message;
+            auto event = daemon_event("connection", "connection.failed");
+            add_request_context(event, self->request_);
+            event["connection_id"] = self->connection_id_;
+            event["error_code"] = bto::observability::code::kDaemonConnectFailed;
+            event["error_detail"] = message;
+            p2p::utils::emit_structured_log(spdlog::level::err, std::move(event));
             self->fail_waiters(message);
         });
         bridge_->on_session_count_changed([self](std::size_t count) {
@@ -106,12 +150,23 @@ public:
             self->fail_waiters("connection stopped");
             self->state_ = ConnectionState::Stopped;
             self->idle_timer_.cancel();
+            auto event = daemon_event("connection", "connection.stopped");
+            add_request_context(event, self->request_);
+            event["connection_id"] = self->connection_id_;
+            event["live_tunnels"] = self->live_tunnel_count();
+            p2p::utils::emit_structured_log(spdlog::level::warn, std::move(event));
             self->service_.on_connection_stopped(self->connection_id_);
         });
 
         if (!bridge_->start()) {
             state_ = ConnectionState::Failed;
             last_error_ = "Bridge start failed";
+            auto event = daemon_event("connection", "connection.start_failed");
+            add_request_context(event, request_);
+            event["connection_id"] = connection_id_;
+            event["error_code"] = bto::observability::code::kBridgeStartFailed;
+            event["error_detail"] = last_error_;
+            p2p::utils::emit_structured_log(spdlog::level::err, std::move(event));
             auto waiters = std::move(waiters_);
             waiters_.clear();
             for (auto& waiter : waiters) {
@@ -157,6 +212,7 @@ public:
     auto view() const -> ConnectionView {
         ConnectionView view;
         view.connection_id = connection_id_;
+        view.trace_id = request_.trace_id;
         view.target_name = request_.target_name;
         view.target_did = request_.target_did;
         view.local_did = request_.local_did;
@@ -174,6 +230,9 @@ public:
     auto connection_id() const -> const std::string& { return connection_id_; }
     auto target_name() const -> const std::string& { return request_.target_name; }
     auto target_did() const -> const std::string& { return request_.target_did; }
+    auto live_tunnel_count() const -> std::size_t {
+        return bridge_ ? bridge_->active_session_count() : 0;
+    }
     auto can_use_port(std::optional<uint16_t> port) const -> bool {
         return !port || *port == local_port_;
     }
@@ -252,7 +311,9 @@ private:
                 std::string line;
                 std::getline(input, line);
                 if (line.empty()) {
-                    self->write_response(make_error("invalid_request", "empty request"));
+                    self->write_response(make_error(
+                        bto::observability::code::kDaemonInvalidRequest,
+                        "empty request"));
                     return;
                 }
 
@@ -262,7 +323,9 @@ private:
                         self->write_response(std::move(response));
                     });
                 } catch (const std::exception& ex) {
-                    self->write_response(make_error("invalid_json", ex.what()));
+                    self->write_response(make_error(
+                        bto::observability::code::kDaemonInvalidJson,
+                        ex.what()));
                 }
             });
     }
@@ -317,7 +380,9 @@ void PeerlinkService::handle_request(const Json& request, ReplyFn reply) {
         handle_shutdown(std::move(reply));
         return;
     }
-    reply(make_error("unknown_action", "unknown action: " + action));
+    reply(make_error(
+        bto::observability::code::kDaemonUnknownAction,
+        "unknown action: " + action));
 }
 
 void PeerlinkService::handle_status(ReplyFn reply) {
@@ -362,6 +427,7 @@ void PeerlinkService::handle_list_targets(ReplyFn reply) {
 
 void PeerlinkService::handle_create_session(const Json& request, ReplyFn reply) {
     CreateSessionRequest create_request;
+    create_request.trace_id = request.value("trace_id", p2p::utils::make_trace_id("session"));
     create_request.target_name = request.value("target_name", "");
     create_request.target_did = request.value("target_did", "");
     create_request.local_did = request.value("local_did", "");
@@ -374,16 +440,29 @@ void PeerlinkService::handle_create_session(const Json& request, ReplyFn reply) 
             static_cast<uint16_t>(request["requested_port"].get<int>());
     }
 
+    auto requested = daemon_event("session", "session.create.requested");
+    add_request_context(requested, create_request);
+    p2p::utils::emit_structured_log(spdlog::level::info, std::move(requested));
+
     if (create_request.target_did.empty()) {
-        reply(make_error("invalid_request", "target_did is required"));
+        reply(make_error(
+            bto::observability::code::kDaemonInvalidRequest,
+            "target_did is required",
+            error_details_for_trace(create_request.trace_id)));
         return;
     }
     if (create_request.local_did.empty()) {
-        reply(make_error("invalid_request", "local_did is required"));
+        reply(make_error(
+            bto::observability::code::kDaemonInvalidRequest,
+            "local_did is required",
+            error_details_for_trace(create_request.trace_id)));
         return;
     }
     if (create_request.relay_host.empty()) {
-        reply(make_error("invalid_request", "relay_host is required"));
+        reply(make_error(
+            bto::observability::code::kDaemonInvalidRequest,
+            "relay_host is required",
+            error_details_for_trace(create_request.trace_id)));
         return;
     }
     if (create_request.target_name.empty()) {
@@ -393,7 +472,10 @@ void PeerlinkService::handle_create_session(const Json& request, ReplyFn reply) 
     const auto key = connection_key(create_request);
     auto existing = connections_.find(key);
     if (existing != connections_.end() && !existing->second->can_use_port(create_request.requested_port)) {
-        reply(make_error("port_conflict", "target already attached to a different local port"));
+        reply(make_error(
+            bto::observability::code::kDaemonPortConflict,
+            "target already attached to a different local port",
+            error_details_for_trace(create_request.trace_id)));
         return;
     }
 
@@ -402,7 +484,10 @@ void PeerlinkService::handle_create_session(const Json& request, ReplyFn reply) 
     if (existing == connections_.end()) {
         auto port = endpoint_manager_.acquire(key, create_request.requested_port);
         if (!port) {
-            reply(make_error("port_unavailable", "no available local port"));
+            reply(make_error(
+                bto::observability::code::kDaemonPortUnavailable,
+                "no available local port",
+                error_details_for_trace(create_request.trace_id)));
             return;
         }
 
@@ -415,11 +500,21 @@ void PeerlinkService::handle_create_session(const Json& request, ReplyFn reply) 
 
     connection->add_waiter([this, connection, create_request, reply](bool ok, const std::string& error) mutable {
         if (!ok) {
-            reply(make_error("connect_failed", error));
+            auto failed = daemon_event("session", "session.create.failed");
+            add_request_context(failed, create_request);
+            failed["connection_id"] = connection->connection_id();
+            failed["error_code"] = bto::observability::code::kDaemonConnectFailed;
+            failed["error_detail"] = error;
+            p2p::utils::emit_structured_log(spdlog::level::err, std::move(failed));
+            reply(make_error(
+                bto::observability::code::kDaemonConnectFailed,
+                error,
+                Json{{"trace_id", create_request.trace_id}, {"connection_id", connection->connection_id()}}));
             return;
         }
 
         SessionRecord record;
+        record.trace_id = create_request.trace_id;
         record.session_id = next_session_id();
         record.connection_id = connection->connection_id();
         record.target_name = create_request.target_name;
@@ -431,14 +526,40 @@ void PeerlinkService::handle_create_session(const Json& request, ReplyFn reply) 
         sessions_[record.session_id] = record;
         connection->add_session(record.session_id);
         auto timer = std::make_unique<boost::asio::steady_timer>(ioc_);
-        timer->expires_after(std::chrono::minutes(10));
-        timer->async_wait([this, session_id = record.session_id](const boost::system::error_code& ec) {
+        auto arm_timeout = std::make_shared<std::function<void(const boost::system::error_code&)>>();
+        *arm_timeout = [this, session_id = record.session_id, arm_timeout](
+                           const boost::system::error_code& ec) {
             if (ec) {
                 return;
             }
+
+            const auto session_it = sessions_.find(session_id);
+            if (session_it == sessions_.end()) {
+                return;
+            }
+            const auto connection_it = connections_.find(session_it->second.connection_id);
+            if (connection_it != connections_.end() &&
+                !should_release_session_after_timeout(connection_it->second->live_tunnel_count())) {
+                auto timer_it = session_timers_.find(session_id);
+                if (timer_it != session_timers_.end()) {
+                    timer_it->second->expires_after(std::chrono::minutes(10));
+                    timer_it->second->async_wait(*arm_timeout);
+                }
+                return;
+            }
+
             release_session(session_id);
-        });
+        };
+        timer->expires_after(std::chrono::minutes(10));
+        timer->async_wait(*arm_timeout);
         session_timers_[record.session_id] = std::move(timer);
+
+        auto ready = daemon_event("session", "session.create.ready");
+        add_request_context(ready, create_request);
+        ready["connection_id"] = record.connection_id;
+        ready["session_id"] = record.session_id;
+        ready["local_port"] = record.local_port;
+        p2p::utils::emit_structured_log(spdlog::level::info, std::move(ready));
 
         reply(make_ok({
             {"session", make_session_view(record, connection->state_name())},
@@ -454,11 +575,15 @@ void PeerlinkService::handle_create_session(const Json& request, ReplyFn reply) 
 void PeerlinkService::handle_close_session(const Json& request, ReplyFn reply) {
     const auto session_id = request.value("session_id", "");
     if (session_id.empty()) {
-        reply(make_error("invalid_request", "session_id is required"));
+        reply(make_error(
+            bto::observability::code::kDaemonInvalidRequest,
+            "session_id is required"));
         return;
     }
     if (!sessions_.contains(session_id)) {
-        reply(make_error("not_found", "session not found"));
+        reply(make_error(
+            bto::observability::code::kDaemonNotFound,
+            "session not found"));
         return;
     }
     release_session(session_id);
@@ -472,7 +597,9 @@ void PeerlinkService::handle_close_target(const Json& request, ReplyFn reply) {
     const auto local_did = request.value("local_did", "");
     const auto relay = request.value("relay", "");
     if (query.empty()) {
-        reply(make_error("invalid_request", "target is required"));
+        reply(make_error(
+            bto::observability::code::kDaemonInvalidRequest,
+            "target is required"));
         return;
     }
 
@@ -495,7 +622,9 @@ void PeerlinkService::handle_close_target(const Json& request, ReplyFn reply) {
     }
 
     if (matches.size() > 1) {
-        reply(make_error("ambiguous_target", "target matches multiple connections"));
+        reply(make_error(
+            bto::observability::code::kDaemonAmbiguousTarget,
+            "target matches multiple connections"));
         return;
     }
     if (matches.size() == 1) {
@@ -506,7 +635,9 @@ void PeerlinkService::handle_close_target(const Json& request, ReplyFn reply) {
         return;
     }
 
-    reply(make_error("not_found", "target not found"));
+    reply(make_error(
+        bto::observability::code::kDaemonNotFound,
+        "target not found"));
 }
 
 void PeerlinkService::handle_shutdown(ReplyFn reply) {
@@ -527,6 +658,11 @@ void PeerlinkService::on_connection_stopped(const std::string& connection_id) {
     if (it == connections_.end()) {
         return;
     }
+
+    auto event = daemon_event("connection", "connection.released");
+    event["connection_id"] = connection_id;
+    event["trace_id"] = it->second->view().trace_id;
+    p2p::utils::emit_structured_log(spdlog::level::info, std::move(event));
 
     endpoint_manager_.release(connection_id);
 
@@ -578,6 +714,7 @@ auto PeerlinkService::connection_key(const CreateSessionRequest& request) const 
 auto PeerlinkService::make_session_view(const SessionRecord& record, const std::string& state) const
     -> SessionView {
     SessionView view;
+    view.trace_id = record.trace_id;
     view.session_id = record.session_id;
     view.connection_id = record.connection_id;
     view.target_name = record.target_name;

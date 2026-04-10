@@ -215,6 +215,12 @@ auto run_remote_upgrade(const UpgradeRequest& request) -> UpgradeResult {
     }
 
     const auto artifact_channel = client->create_channel();
+    if (artifact_channel < 0) {
+        result.error = "failed to allocate artifact channel";
+        client->close();
+        stop_io();
+        return result;
+    }
     const auto offer_frame = p2p::protocol::UpgradeOfferRequest{offer, artifact_channel};
     const auto offer_payload = p2p::protocol::encode_upgrade_control_frame(offer_frame);
     auto send_offer_ec = wait_for_callback_timeout(

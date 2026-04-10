@@ -21,7 +21,8 @@ bto <peer>          # 快捷方式
 - 默认通过本机 `peerlinkd` 自动申请或复用本地端口
 - `bto` 会自动拉起当前终端的 `ssh`
 - 仅当显式传入 `--listen` 时，才要求 daemon 绑定固定端口
-- `--legacy-direct` 回退到旧版单进程模式
+- `--legacy-direct` 显式回退到旧版单进程模式
+- daemon 不可用时默认直接报错；如需临时恢复旧自动回退行为，设置 `BTO_ALLOW_DAEMON_FALLBACK=1`
 
 示例：
 ```bash
@@ -29,7 +30,9 @@ bto connect office-213                 # 完整写法
 bto 213                                # 快捷：后缀匹配
 bto 213 --listen 3333                  # 请求固定本地端口
 bto connect 213 --relay 10.0.0.1:9700  # 指定 relay
-bto connect 213 --legacy-direct        # 回退旧版模式
+bto connect 213                        # daemon 不可用时直接报错
+bto connect 213 --legacy-direct        # 显式回退旧版模式
+BTO_ALLOW_DAEMON_FALLBACK=1 bto connect 213
 ```
 
 ### ps — 查看 daemon 连接
@@ -144,7 +147,7 @@ bto version
 | `--did <did>` | 覆盖本机 DID | connect |
 | `--relay <host:port>` | 覆盖 Relay 地址 | connect, ping |
 | `--listen <port>` | 显式请求本地监听端口 | connect |
-| `--legacy-direct` | 跳过 daemon，回退旧模式 | connect |
+| `--legacy-direct` | 跳过 daemon，显式回退旧模式 | connect |
 | `--user <user>` | SSH 用户名 | add |
 | `--key <path>` | SSH 私钥路径 | add |
 | `--help, -h` | 显示帮助 | 全局 |

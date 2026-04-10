@@ -464,6 +464,8 @@ TEST(Parser, CommandDefaultFields) {
     bto::cli::Command cmd;
     EXPECT_TRUE(cmd.name.empty());
     EXPECT_TRUE(cmd.target.empty());
+    EXPECT_TRUE(cmd.device_action.empty());
+    EXPECT_TRUE(cmd.ssh_spec.empty());
     EXPECT_TRUE(cmd.did.empty());
     EXPECT_TRUE(cmd.relay.empty());
     EXPECT_TRUE(cmd.help_topic.empty());
@@ -477,6 +479,64 @@ TEST(Parser, CommandDefaultFields) {
     EXPECT_FALSE(cmd.listen_port_explicit);
 }
 
+TEST(Parser, LoginCommand) {
+    Args a{"bto", "login"};
+    auto cmd = bto::cli::parse_arguments(a.argc(), a.argv());
+    EXPECT_EQ(cmd.name, "login");
+    EXPECT_TRUE(cmd.target.empty());
+}
+
+TEST(Parser, LoginCommandWithEmail) {
+    Args a{"bto", "login", "u@example.com"};
+    auto cmd = bto::cli::parse_arguments(a.argc(), a.argv());
+    EXPECT_EQ(cmd.name, "login");
+    EXPECT_EQ(cmd.target, "u@example.com");
+}
+
+TEST(Parser, LogoutCommand) {
+    Args a{"bto", "logout"};
+    auto cmd = bto::cli::parse_arguments(a.argc(), a.argv());
+    EXPECT_EQ(cmd.name, "logout");
+}
+
+TEST(Parser, WhoamiCommand) {
+    Args a{"bto", "whoami"};
+    auto cmd = bto::cli::parse_arguments(a.argc(), a.argv());
+    EXPECT_EQ(cmd.name, "whoami");
+}
+
+TEST(Parser, DeviceList) {
+    Args a{"bto", "device", "list"};
+    auto cmd = bto::cli::parse_arguments(a.argc(), a.argv());
+    EXPECT_EQ(cmd.name, "device");
+    EXPECT_EQ(cmd.device_action, "list");
+    EXPECT_TRUE(cmd.target.empty());
+}
+
+TEST(Parser, DeviceCreate) {
+    Args a{"bto", "device", "create", "office-213"};
+    auto cmd = bto::cli::parse_arguments(a.argc(), a.argv());
+    EXPECT_EQ(cmd.name, "device");
+    EXPECT_EQ(cmd.device_action, "create");
+    EXPECT_EQ(cmd.target, "office-213");
+}
+
+TEST(Parser, DeviceInstallSsh) {
+    Args a{"bto", "device", "install", "box", "--ssh", "me@host.example"};
+    auto cmd = bto::cli::parse_arguments(a.argc(), a.argv());
+    EXPECT_EQ(cmd.name, "device");
+    EXPECT_EQ(cmd.device_action, "install");
+    EXPECT_EQ(cmd.target, "box");
+    EXPECT_EQ(cmd.ssh_spec, "me@host.example");
+}
+
+TEST(Parser, DeviceRemove) {
+    Args a{"bto", "device", "remove", "old"};
+    auto cmd = bto::cli::parse_arguments(a.argc(), a.argv());
+    EXPECT_EQ(cmd.device_action, "remove");
+    EXPECT_EQ(cmd.target, "old");
+}
+
 // ═══════════════════════════════════════════════════════════════
 //  show_help — 各主题分支
 // ═══════════════════════════════════════════════════════════════
@@ -487,13 +547,19 @@ TEST(ShowHelp, Overview) {
     auto out = cap.get();
 
     EXPECT_NE(out.find("bto"), std::string::npos);
+    EXPECT_NE(out.find("login"), std::string::npos);
+    EXPECT_NE(out.find("device"), std::string::npos);
     EXPECT_NE(out.find("connect"), std::string::npos);
-    EXPECT_NE(out.find("list"), std::string::npos);
-    EXPECT_NE(out.find("add"), std::string::npos);
-    EXPECT_NE(out.find("remove"), std::string::npos);
-    EXPECT_NE(out.find("ping"), std::string::npos);
-    EXPECT_NE(out.find("--did"), std::string::npos);
+    EXPECT_NE(out.find("BTO_API_BASE"), std::string::npos);
+}
+
+TEST(ShowHelp, AdvancedHasRelay) {
+    CaptureStdout cap;
+    bto::cli::show_help("advanced");
+    auto out = cap.get();
+
     EXPECT_NE(out.find("--relay"), std::string::npos);
+    EXPECT_NE(out.find("--did"), std::string::npos);
 }
 
 TEST(ShowHelp, Connect) {

@@ -13,6 +13,7 @@ using Json = nlohmann::json;
 inline constexpr std::string_view kApiVersion = "v1";
 
 struct CreateSessionRequest {
+    std::string trace_id;
     std::string target_name;
     std::string target_did;
     std::string local_did;
@@ -24,6 +25,7 @@ struct CreateSessionRequest {
 };
 
 struct SessionView {
+    std::string trace_id;
     std::string session_id;
     std::string connection_id;
     std::string target_name;
@@ -35,6 +37,7 @@ struct SessionView {
 };
 
 struct ConnectionView {
+    std::string trace_id;
     std::string connection_id;
     std::string target_name;
     std::string target_did;
@@ -55,19 +58,26 @@ inline auto make_ok(Json result = Json::object()) -> Json {
     };
 }
 
-inline auto make_error(const std::string& code, const std::string& message) -> Json {
+inline auto make_error(const std::string& code,
+                       const std::string& message,
+                       Json details = Json{}) -> Json {
+    Json error{
+        {"code", code},
+        {"message", message},
+    };
+    if (!details.is_null() && !details.empty()) {
+        error["details"] = std::move(details);
+    }
     return Json{
         {"ok", false},
         {"version", kApiVersion},
-        {"error", {
-            {"code", code},
-            {"message", message},
-        }},
+        {"error", std::move(error)},
     };
 }
 
 inline void to_json(Json& json, const SessionView& value) {
     json = Json{
+        {"trace_id", value.trace_id},
         {"session_id", value.session_id},
         {"connection_id", value.connection_id},
         {"target_name", value.target_name},
@@ -81,6 +91,7 @@ inline void to_json(Json& json, const SessionView& value) {
 
 inline void to_json(Json& json, const ConnectionView& value) {
     json = Json{
+        {"trace_id", value.trace_id},
         {"connection_id", value.connection_id},
         {"target_name", value.target_name},
         {"target_did", value.target_did},

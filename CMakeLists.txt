@@ -44,6 +44,11 @@ link_directories(
 add_library(bto_runtime STATIC
     src/p2p_bridge_v2.cpp
     src/cli/parser.cpp
+    src/cloud/auth_client.cpp
+    src/cloud/device_client.cpp
+    src/cloud/hosted_http.cpp
+    src/cloud/hosted_parse.cpp
+    src/cloud/token_store.cpp
     src/config/config.cpp
     src/daemon/local_endpoint_manager.cpp
     src/daemon/peerlink_service.cpp
@@ -60,11 +65,6 @@ add_executable(bto
 
 add_executable(peerlinkd
     src/peerlinkd_main.cpp
-)
-
-# 保留旧版本用于对比测试
-add_executable(bto_v1
-    src/bto.cpp
 )
 
 target_link_libraries(bto_runtime PUBLIC
@@ -92,12 +92,7 @@ target_link_libraries(bto
 target_link_libraries(peerlinkd
     bto_runtime
 )
-
-target_link_libraries(bto_v1
-    bto_runtime
-)
-
-install(TARGETS bto peerlinkd bto_v1 RUNTIME DESTINATION bin)
+install(TARGETS bto peerlinkd RUNTIME DESTINATION bin)
 
 # ─── 测试 ───────────────────────────────────────────────────────
 option(BTO_BUILD_TESTS "构建单元测试" ON)
@@ -105,7 +100,7 @@ option(BTO_BUILD_TESTS "构建单元测试" ON)
 if(BTO_BUILD_TESTS)
     enable_testing()
 
-    # 可测试的库（不含 P2P 依赖的 bto.cpp / p2p_bridge.cpp）
+    # 可测试的库（不含 P2P 依赖的 bto.cpp / p2p_bridge_v2.cpp）
     add_library(bto_testable STATIC
         src/cli/parser.cpp
         src/config/config.cpp
@@ -119,7 +114,13 @@ if(BTO_BUILD_TESTS)
         test/test_parser.cpp
         test/test_config.cpp
         test/test_commands.cpp
+        test/test_observability.cpp
+        test/test_session_lifecycle.cpp
+        test/test_ssh_command.cpp
         test/test_manifest_client.cpp
+        test/test_token_store.cpp
+        test/test_auth_client.cpp
+        test/test_hosted_parse.cpp
     )
     target_include_directories(bto_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
     target_link_libraries(bto_tests

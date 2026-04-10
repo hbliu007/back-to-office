@@ -25,6 +25,7 @@ public:
 
 private:
     struct SessionRecord {
+        std::string trace_id;
         std::string session_id;
         std::string connection_id;
         std::string target_name;

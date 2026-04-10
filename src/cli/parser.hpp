@@ -29,8 +29,10 @@ namespace ExitCode {
 }
 
 struct Command {
-    std::string name;           // connect, upgrade, list, add, remove, status, config, ping, ps, close, daemon
-    std::string target;         // peer name, DID, or session/connection query
+    std::string name;           // login, logout, whoami, device, connect, upgrade, list, ...
+    std::string target;         // peer name, DID, device display name, or session/connection query
+    std::string device_action;  // list | create | install | remove (when name == "device")
+    std::string ssh_spec;       // user@host for device install --ssh
     std::string did;            // --did override
     std::string relay;          // --relay override
     std::string help_topic;     // help <topic> 的主题

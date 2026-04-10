@@ -70,7 +70,7 @@ test/
 - `test_parser` / `test_config`: 直接链接 `bto_testable` 库的单元测试
 - `test_commands`: 通过 `popen()` 运行 `bto` 二进制的集成测试，使用隔离 HOME 目录
 
-**不可测部分**: `p2p_bridge.cpp` 依赖真实 P2P 基础设施（Relay 服务器），无法在 CI 环境中测试。connect 命令的 P2P 连接路径通过 parser + config 单元测试间接覆盖参数解析逻辑。
+**不可测部分**: `p2p_bridge_v2.cpp` 依赖真实 P2P 基础设施（Relay 服务器），无法在 CI 环境中测试。connect 命令的 P2P 连接路径通过 parser + config 单元测试间接覆盖参数解析逻辑。
 
 ## 覆盖率
 
@@ -118,7 +118,7 @@ lcov --summary build-cov/coverage_filtered.info
 | `parser.cpp` | ~95% | CLI 解析全路径覆盖 |
 | `config.cpp` | ~95% | 加载/保存/匹配全覆盖 |
 | `bto.cpp` | ~70% | P2P 相关路径无法测试 |
-| `p2p_bridge.cpp` | 0% | 需要真实 P2P 基础设施 |
+| `p2p_bridge_v2.cpp` | 0% | 需要真实 P2P 基础设施 |
 | **可测代码合计** | **85.5%** | 超过 80% 目标 |
 
 ## CMake 选项
@@ -135,7 +135,7 @@ back-to-office/
 ├── CMakeLists.txt          # 构建配置
 ├── src/
 │   ├── bto.cpp             # 主入口
-│   ├── p2p_bridge.hpp/cpp  # P2P 桥接层
+│   ├── p2p_bridge_v2.hpp/cpp  # P2P 桥接层
 │   ├── cli/
 │   │   ├── parser.hpp      # CLI 接口
 │   │   └── parser.cpp      # CLI 实现

@@ -32,6 +32,11 @@ auto default_config_path() -> std::string {
     return std::string(home ? home : ".") + "/.bto/config.toml";
 }
 
+auto default_auth_path() -> std::string {
+    const char* home = std::getenv("HOME");
+    return std::string(home ? home : ".") + "/.bto/auth.json";
+}
+
 auto default_runtime_dir() -> std::string {
     const char* home = std::getenv("HOME");
     return std::string(home ? home : ".") + "/.peerlink/run";

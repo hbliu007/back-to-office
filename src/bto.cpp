@@ -7,14 +7,19 @@
  */
 
 #include "cli/parser.hpp"
+#include "cloud/auth_client.hpp"
+#include "cloud/device_client.hpp"
+#include "cloud/token_store.hpp"
 #include "config/config.hpp"
 #include "daemon/common.hpp"
 #include "daemon/daemon_client.hpp"
 #include "p2p_bridge_v2.hpp"
 #include "p2p/core/artifact_transfer.hpp"
+#include "p2p/utils/structured_log.hpp"
 #include "upgrade/manifest_client.hpp"
 #include "upgrade/upgrade_client.hpp"
 #include "upgrade/upgrade_precheck.hpp"
+#include "util/ssh_command.hpp"
 
 #include <algorithm>
 #include <atomic>
@@ -24,6 +29,7 @@
 #include <cstdlib>
 #include <filesystem>
 #include <fstream>
+#include <iomanip>
 #include <iostream>
 #include <limits.h>
 #include <optional>
@@ -190,6 +196,11 @@ auto insecure_ssh_connect_allowed() -> bool {
     return value && std::string(value) == "1";
 }
 
+auto daemon_fallback_allowed() -> bool {
+    const char* value = std::getenv("BTO_ALLOW_DAEMON_FALLBACK");
+    return value && std::string(value) == "1";
+}
+
 auto ssh_known_hosts_path() -> std::string {
     const auto known_hosts =
         std::filesystem::path(bto::config::default_config_path()).parent_path() / "known_hosts";
@@ -205,34 +216,14 @@ auto spawn_ssh_process(const std::string& user,
     -> std::optional<pid_t> {
     pid_t pid = fork();
     if (pid == 0) {
-        std::vector<std::string> storage;
+        auto storage = bto::build_ssh_argv(
+            user,
+            key,
+            port,
+            host_key_alias,
+            insecure_ssh_connect_allowed(),
+            ssh_known_hosts_path());
         std::vector<char*> argv;
-
-        storage.emplace_back("ssh");
-        if (insecure_ssh_connect_allowed()) {
-            storage.emplace_back("-o");
-            storage.emplace_back("StrictHostKeyChecking=no");
-            storage.emplace_back("-o");
-            storage.emplace_back("UserKnownHostsFile=/dev/null");
-        } else {
-            storage.emplace_back("-o");
-            storage.emplace_back("StrictHostKeyChecking=accept-new");
-            storage.emplace_back("-o");
-            storage.emplace_back("UserKnownHostsFile=" + ssh_known_hosts_path());
-            if (!host_key_alias.empty()) {
-                storage.emplace_back("-o");
-                storage.emplace_back("HostKeyAlias=" + host_key_alias);
-            }
-        }
-        storage.emplace_back("-o");
-        storage.emplace_back("LogLevel=ERROR");
-        storage.emplace_back("-p");
-        storage.emplace_back(std::to_string(port));
-        if (!key.empty()) {
-            storage.emplace_back("-i");
-            storage.emplace_back(key);
-        }
-        storage.emplace_back(user + "@127.0.0.1");
 
         for (auto& item : storage) {
             argv.push_back(item.data());
@@ -337,6 +328,7 @@ auto try_connect_daemon(const bto::cli::Command& cmd, const bto::config::Config&
     }
 
     auto [relay_host, relay_port] = parse_relay(relay);
+    const auto trace_id = p2p::utils::make_trace_id("connect");
     const auto socket_path = bto::config::default_daemon_socket_path();
     if (!ensure_daemon_available(socket_path)) {
         return std::nullopt;
@@ -345,6 +337,7 @@ auto try_connect_daemon(const bto::cli::Command& cmd, const bto::config::Config&
     bto::daemon::DaemonClient client(socket_path);
     bto::daemon::Json request{
         {"action", "create_session"},
+        {"trace_id", trace_id},
         {"target_name", target.name},
         {"target_did", target.did},
         {"local_did", local_did},
@@ -365,9 +358,20 @@ auto try_connect_daemon(const bto::cli::Command& cmd, const bto::config::Config&
     }
 
     if (!response.value("ok", false)) {
+        const auto& error = response["error"];
         std::cerr << "[peerlinkd] "
-                  << response["error"].value("message", "unknown error")
-                  << "\n";
+                  << error.value("message", "unknown error");
+        const auto code = error.value("code", "");
+        if (!code.empty()) {
+            std::cerr << " code=" << code;
+        }
+        if (error.contains("details")) {
+            const auto trace = error["details"].value("trace_id", "");
+            if (!trace.empty()) {
+                std::cerr << " trace_id=" << trace;
+            }
+        }
+        std::cerr << "\n";
         return EC::NETWORK;
     }
 
@@ -438,6 +442,7 @@ int cmd_connect_legacy(const bto::cli::Command& cmd, bto::config::Config& config
     auto bridge = std::make_shared<bto::ConnectBridge>(
         ioc, local_did, target.did, p2p_cfg, cmd.listen_port);
     bridge->set_ssh_hint(target.user, target.key);
+    bridge->set_trace_id(p2p::utils::make_trace_id("legacy-connect"));
     if (!bridge->start()) {
         g_ioc.store(nullptr, std::memory_order_release);
         return EC::NETWORK;
@@ -483,7 +488,13 @@ int cmd_connect(const bto::cli::Command& cmd, bto::config::Config& config) {
         return *daemon_result;
     }
 
-    std::cerr << "peerlinkd 不可用，回退到 legacy 直连模式\n";
+    if (!daemon_fallback_allowed()) {
+        std::cerr << "peerlinkd 不可用，拒绝自动回退到 legacy 直连模式。"
+                     "如需旧路径，请显式传 --legacy-direct 或设置 BTO_ALLOW_DAEMON_FALLBACK=1\n";
+        return EC::NETWORK;
+    }
+
+    std::cerr << "peerlinkd 不可用，按环境变量配置回退到 legacy 直连模式\n";
     return cmd_connect_legacy(cmd, config);
 }
 
@@ -543,8 +554,12 @@ int cmd_ps() {
                       << "  port=" << item.value("local_port", 0)
                       << "  state=" << item.value("state", "unknown")
                       << "  refs=" << item.value("active_sessions", 0)
-                      << "  live=" << item.value("live_tunnels", 0)
-                      << "\n";
+                      << "  live=" << item.value("live_tunnels", 0);
+            const auto last_error = item.value("last_error", "");
+            if (!last_error.empty()) {
+                std::cout << "  last_error=" << last_error;
+            }
+            std::cout << "\n";
         }
         return EC::OK;
     } catch (const std::exception& ex) {
@@ -766,6 +781,149 @@ int cmd_ping(const bto::cli::Command& cmd, const bto::config::Config& config) {
     }
 }
 
+auto getenv_string(const char* key) -> std::string {
+    const char* v = std::getenv(key);
+    return v ? std::string(v) : std::string{};
+}
+
+int cmd_login(const bto::cli::Command& cmd) {
+    std::string email = !cmd.target.empty() ? cmd.target : getenv_string("BTO_LOGIN_EMAIL");
+    const std::string password = getenv_string("BTO_LOGIN_PASSWORD");
+    if (email.empty() || password.empty()) {
+        std::cerr << "用法: bto login <email>（或设置 BTO_LOGIN_EMAIL）并设置 BTO_LOGIN_PASSWORD。\n"
+                  << "详见: bto help login\n";
+        return EC::USAGE;
+    }
+
+    bto::cloud::AuthClient client{bto::cloud::HostedConfig{bto::cloud::hosted_api_base_from_env()}};
+    std::string err;
+    const auto tokens = client.login_email_password(email, password, &err);
+    if (!tokens) {
+        std::cerr << err << "\n";
+        return EC::CONFIG;
+    }
+
+    bto::cloud::TokenStore store(bto::config::default_auth_path());
+    if (!store.save(*tokens)) {
+        std::cerr << "保存令牌失败: " << store.path() << "\n";
+        return EC::CONFIG;
+    }
+    std::cout << "登录成功: " << tokens->email << "\n已写入 " << store.path() << "\n";
+    return EC::OK;
+}
+
+int cmd_logout() {
+    bto::cloud::TokenStore store(bto::config::default_auth_path());
+    (void)store.clear();
+    std::cout << "已清除本地登录令牌（若存在）: " << store.path() << "\n";
+    return EC::OK;
+}
+
+int cmd_whoami() {
+    bto::cloud::TokenStore store(bto::config::default_auth_path());
+    const auto tokens = store.load();
+    if (!tokens) {
+        std::cout << "未登录（无有效令牌或 " << store.path() << " 不可用）\n";
+        return EC::OK;
+    }
+    std::cout << "user_id=" << tokens->user_id << "\n"
+              << "email=" << tokens->email << "\n"
+              << "plan=" << (tokens->plan.empty() ? std::string{"-"} : tokens->plan) << "\n"
+              << "expires_at=" << tokens->expires_at << "\n";
+    return EC::OK;
+}
+
+int cmd_device(const bto::cli::Command& cmd) {
+    if (cmd.device_action.empty()) {
+        std::cerr << "错误: 请指定子命令\n"
+                  << "用法: bto device list | create <name> | install <name> --ssh user@host | remove <name>\n";
+        return EC::USAGE;
+    }
+
+    const auto api = bto::cloud::hosted_api_base_from_env();
+    const bto::cloud::HostedConfig cfg{api};
+    bto::cloud::TokenStore store(bto::config::default_auth_path());
+
+    if (cmd.device_action == "list") {
+        const auto auth = store.load();
+        if (!auth) {
+            std::cerr << "错误: 未登录。请先 bto login。\n";
+            return EC::CONFIG;
+        }
+        std::string err;
+        bto::cloud::DeviceClient dc(cfg);
+        const auto list = dc.list_devices(*auth, &err);
+        if (!list) {
+            std::cerr << err << "\n";
+            return EC::CONFIG;
+        }
+        if (list->empty()) {
+            std::cout << "（无托管设备）\n";
+            return EC::OK;
+        }
+        std::cout << std::left << std::setw(18) << "DISPLAY_NAME" << std::setw(14) << "DEVICE_ID"
+                  << std::setw(10) << "PLATFORM" << std::setw(12) << "STATUS" << "AGENT_VER\n";
+        for (const auto& d : *list) {
+            std::cout << std::setw(18) << d.display_name << std::setw(14) << d.device_id
+                      << std::setw(10) << d.platform << std::setw(12) << d.status
+                      << d.agent_version << "\n";
+        }
+        return EC::OK;
+    }
+
+    if (cmd.device_action == "create") {
+        if (cmd.target.empty()) {
+            std::cerr << "用法: bto device create <display_name>\n";
+            return EC::USAGE;
+        }
+        const auto auth = store.load();
+        if (!auth) {
+            std::cerr << "错误: 未登录\n";
+            return EC::CONFIG;
+        }
+        std::string err;
+        bto::cloud::DeviceClient dc(cfg);
+        const auto created = dc.create_device(*auth, cmd.target, &err);
+        if (!created) {
+            std::cerr << err << "\n";
+            return EC::CONFIG;
+        }
+        std::cout << "device_id=" << created->device_id << "\n"
+                  << "display_name=" << created->display_name << "\n"
+                  << "claim_code=" << created->claim_code << "\n"
+                  << "expires_at=" << created->expires_at << "\n";
+        if (!created->install_url.empty()) {
+            std::cout << "install_url=" << created->install_url << "\n";
+        }
+        return EC::OK;
+    }
+
+    if (cmd.device_action == "install") {
+        if (cmd.target.empty()) {
+            std::cerr << "用法: bto device install <name> --ssh user@host\n";
+            return EC::USAGE;
+        }
+        if (cmd.ssh_spec.empty()) {
+            std::cerr << "错误: 缺少 --ssh user@host\n";
+            return EC::USAGE;
+        }
+        std::cerr << "设备 SSH 安装编排尚未实现: target=" << cmd.target << " ssh=" << cmd.ssh_spec << "\n";
+        return EC::CONFIG;
+    }
+
+    if (cmd.device_action == "remove") {
+        if (cmd.target.empty()) {
+            std::cerr << "用法: bto device remove <display_name>\n";
+            return EC::USAGE;
+        }
+        std::cerr << "DELETE /v1/devices/{id} 尚未实现。\n";
+        return EC::CONFIG;
+    }
+
+    std::cerr << "未知 device 子命令: " << cmd.device_action << "\n";
+    return EC::USAGE;
+}
+
 int cmd_upgrade(const bto::cli::Command& cmd, const bto::config::Config& config) {
     if (cmd.target.empty()) {
         std::cerr << "错误: 请指定目标设备\n"
@@ -922,6 +1080,10 @@ int main(int argc, char* argv[]) {
     if (!cmd.did.empty()) runtime_config.did = cmd.did;
     if (!cmd.relay.empty()) runtime_config.relay = cmd.relay;
 
+    if (cmd.name == "login")        return cmd_login(cmd);
+    if (cmd.name == "logout")       return cmd_logout();
+    if (cmd.name == "whoami")       return cmd_whoami();
+    if (cmd.name == "device")       return cmd_device(cmd);
     if (cmd.name == "connect")      return cmd_connect(cmd, runtime_config);
     if (cmd.name == "upgrade")      return cmd_upgrade(cmd, runtime_config);
     if (cmd.name == "list")         return cmd_list(config);

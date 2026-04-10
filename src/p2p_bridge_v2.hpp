@@ -109,8 +109,12 @@ public:
     std::size_t active_session_count() const;
     uint16_t listen_port() const { return listen_port_; }
     bool is_ready() const { return p2p_connected_; }
+    const std::string& trace_id() const { return trace_id_; }
+    const std::string& did() const { return did_; }
+    const std::string& peer_did() const { return peer_did_; }
 
     void set_ssh_hint(const std::string& user, const std::string& key = "");
+    void set_trace_id(std::string trace_id) { trace_id_ = std::move(trace_id); }
 
     void on_ready(ReadyCallback cb) { on_ready_ = std::move(cb); }
     void on_failed(FailedCallback cb) { on_failed_ = std::move(cb); }
@@ -124,6 +128,12 @@ public:
 
 private:
     void initialize_p2p_client();
+    void schedule_reconnect(const std::string& reason);
+    void reset_p2p_client();
+    void reseed_existing_channels_for_reconnect();
+    void flush_pending_channel_data();
+    auto queue_pending_channel_data(int channel_id, const std::vector<uint8_t>& data) -> bool;
+    void close_session_for_channel(int channel_id, const std::string& reason);
     void do_accept();
     void remove_session(int id);
 
@@ -140,20 +150,30 @@ private:
     // 单例 P2PClient
     std::shared_ptr<p2p::core::P2PClient> p2p_client_;
     bool p2p_connected_ = false;
+    bool ever_connected_ = false;
+    bool reconnecting_ = false;
+    std::size_t reconnect_attempts_ = 0;
+    boost::asio::steady_timer reconnect_timer_;
+    std::string last_disconnect_detail_;
 
     // 会话管理
     std::map<int, std::shared_ptr<TunnelSession>> sessions_;
     std::map<int, int> channel_to_session_;  // channel_id → session_id
+    std::map<int, std::deque<std::vector<uint8_t>>> pending_channel_data_;
+    std::map<int, std::size_t> pending_channel_bytes_;
     mutable std::mutex sessions_mutex_;
     int next_session_id_ = 0;
     bool stopping_ = false;
 
     std::string ssh_user_;
     std::string ssh_key_;
+    std::string trace_id_;
     ReadyCallback on_ready_;
     FailedCallback on_failed_;
     StoppedCallback on_stopped_;
     SessionCountCallback on_session_count_changed_;
+
+    static constexpr std::size_t kMaxBufferedBytesPerChannel = 256 * 1024;
 };
 
 }  // namespace bto

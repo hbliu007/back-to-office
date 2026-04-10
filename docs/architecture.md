@@ -77,7 +77,8 @@ daemon 只认通用的连接键：
 
 - 默认优先走 `peerlinkd`
 - `connect` 在 daemon 可用时变成“申请会话 + 前台 ssh”
-- `--legacy-direct` 保留旧模式，作为回退路径
+- `--legacy-direct` 保留旧模式，但必须显式启用
+- daemon 不可用时默认报错，不再自动回退；如需兼容旧行为，设置 `BTO_ALLOW_DAEMON_FALLBACK=1`
 - `ps` / `close` / `daemon` 提供本地运维入口
 
 ### `daemon/peerlink_service.*`
