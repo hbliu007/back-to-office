@@ -10,7 +10,7 @@
 
 #include <algorithm>
 #include <chrono>
-#include <iostream>
+#include <spdlog/spdlog.h>
 #include <system_error>
 #include <vector>
 
@@ -37,11 +37,11 @@ auto bridge_event(const ConnectBridge& bridge,
 TunnelSession::TunnelSession(int id,
                              boost::asio::io_context& ioc,
                              std::shared_ptr<tcp::socket> socket,
-                             ConnectBridge* bridge)
+                             std::weak_ptr<ConnectBridge> bridge)
     : id_(id)
     , ioc_(ioc)
     , tcp_socket_(std::move(socket))
-    , bridge_(bridge)
+    , bridge_(std::move(bridge))
 {}
 
 TunnelSession::~TunnelSession() {
@@ -49,7 +49,7 @@ TunnelSession::~TunnelSession() {
 }
 
 void TunnelSession::start() {
-    std::cout << "[bto] #" << id_ << " 会话启动 (channel=" << channel_id_ << ")" << std::endl;
+    spdlog::info("[bto] #{} 会话启动 (channel={})", id_, channel_id_);
     read_tcp();
 }
 
@@ -57,7 +57,7 @@ void TunnelSession::close() {
     if (closed_) return;
     closed_ = true;
 
-    std::cout << "[bto] #" << id_ << " 关闭会话 (channel=" << channel_id_ << ")" << std::endl;
+    spdlog::info("[bto] #{} 关闭会话 (channel={})", id_, channel_id_);
 
     if (tcp_socket_ && tcp_socket_->is_open()) {
         boost::system::error_code ec;
@@ -74,12 +74,23 @@ void TunnelSession::on_p2p_data(const std::vector<uint8_t>& data) {
     if (closed_) return;
     if (!tcp_socket_ || !tcp_socket_->is_open()) return;
 
-    std::cout << "[bto] #" << id_ << " P2P 收到 " << data.size()
-              << " 字节 (channel=" << channel_id_ << ")" << std::endl;
+    spdlog::debug("[bto] #{} P2P 收到 {} 字节 (channel={})", id_, data.size(), channel_id_);
 
-    std::lock_guard<std::mutex> lock(write_mutex_);
-    write_queue_.push_back(std::make_shared<std::vector<uint8_t>>(data));
-    if (!writing_) {
+    bool start_write = false;
+    {
+        std::lock_guard<std::mutex> lock(write_mutex_);
+        if (write_queue_.size() >= kMaxWriteQueueSize) {
+            spdlog::error("[bto] #{} write queue overflow (channel={}), closing", id_, channel_id_);
+            boost::asio::post(ioc_, [self = shared_from_this()]() { self->close(); });
+            return;
+        }
+        write_queue_.push_back(std::make_shared<std::vector<uint8_t>>(data));
+        if (!writing_) {
+            writing_ = true;
+            start_write = true;
+        }
+    }
+    if (start_write) {
         do_write();
     }
 }
@@ -97,11 +108,10 @@ void TunnelSession::read_tcp() {
             if (ec) {
                 if (ec != boost::asio::error::eof &&
                     ec != boost::asio::error::operation_aborted) {
-                    std::cerr << "[bto] #" << self->id_
-                              << " TCP 读取错误: " << ec.message() << std::endl;
-                    if (self->bridge_) {
+                    spdlog::warn("[bto] #{} TCP 读取错误: {}", self->id_, ec.message());
+                    if (auto bridge = self->bridge_.lock()) {
                         auto event =
-                            bridge_event(*self->bridge_, "session", "session.tcp.read_failed");
+                            bridge_event(*bridge, "session", "session.tcp.read_failed");
                         event["channel_id"] = self->channel_id_;
                         event["error_code"] = observability::code::kBridgeTcpReadFailed;
                         event["error_detail"] = ec.message();
@@ -112,12 +122,16 @@ void TunnelSession::read_tcp() {
                 return;
             }
 
-            std::cout << "[bto] #" << self->id_ << " TCP 收到 " << n
-                      << " 字节 (channel=" << self->channel_id_ << ")" << std::endl;
+            spdlog::debug("[bto] #{} TCP 收到 {} 字节 (channel={})", self->id_, n, self->channel_id_);
 
             if (n > 0 && self->channel_id_ >= 0) {
                 buf->resize(n);
-                self->bridge_->send_to_p2p(self->channel_id_, *buf);
+                if (auto bridge = self->bridge_.lock()) {
+                    bridge->send_to_p2p(self->channel_id_, *buf);
+                } else {
+                    self->close();
+                    return;
+                }
             }
 
             self->read_tcp();
@@ -127,14 +141,17 @@ void TunnelSession::read_tcp() {
 
 void TunnelSession::do_write() {
     if (closed_) return;
-    if (write_queue_.empty()) {
-        writing_ = false;
-        return;
-    }
 
-    writing_ = true;
-    auto data = write_queue_.front();
-    write_queue_.pop_front();
+    std::shared_ptr<std::vector<uint8_t>> data;
+    {
+        std::lock_guard<std::mutex> lock(write_mutex_);
+        if (write_queue_.empty()) {
+            writing_ = false;
+            return;
+        }
+        data = write_queue_.front();
+        write_queue_.pop_front();
+    }
 
     auto self = shared_from_this();
     boost::asio::async_write(
@@ -142,10 +159,9 @@ void TunnelSession::do_write() {
         boost::asio::buffer(*data),
         [self, data](const boost::system::error_code& ec, std::size_t) {
             if (ec) {
-                std::cerr << "[bto] #" << self->id_
-                          << " TCP 写入错误: " << ec.message() << std::endl;
-                if (self->bridge_) {
-                    auto event = bridge_event(*self->bridge_, "session", "session.tcp.write_failed");
+                spdlog::warn("[bto] #{} TCP 写入错误: {}", self->id_, ec.message());
+                if (auto bridge = self->bridge_.lock()) {
+                    auto event = bridge_event(*bridge, "session", "session.tcp.write_failed");
                     event["channel_id"] = self->channel_id_;
                     event["error_code"] = observability::code::kBridgeTcpWriteFailed;
                     event["error_detail"] = ec.message();
@@ -155,7 +171,6 @@ void TunnelSession::do_write() {
                 return;
             }
 
-            std::lock_guard<std::mutex> lock(self->write_mutex_);
             self->do_write();
         }
     );
@@ -189,7 +204,7 @@ bool ConnectBridge::start() {
         acceptor_.bind(endpoint);
         acceptor_.listen();
 
-        std::cout << "[bto] 监听端口 " << listen_port_ << std::endl;
+        spdlog::info("[bto] 监听端口 {}", listen_port_);
         auto event = bridge_event(*this, "bridge", "bridge.listen.ready");
         event["local_port"] = listen_port_;
         p2p::utils::emit_structured_log(spdlog::level::info, std::move(event));
@@ -199,7 +214,7 @@ bool ConnectBridge::start() {
 
         return true;
     } catch (const std::exception& e) {
-        std::cerr << "[bto] 启动失败: " << e.what() << std::endl;
+        spdlog::error("[bto] 启动失败: {}", e.what());
         auto event = bridge_event(*this, "bridge", "bridge.start_failed");
         event["local_port"] = listen_port_;
         event["error_code"] = observability::code::kBridgeStartFailed;
@@ -216,7 +231,7 @@ void ConnectBridge::stop() {
     reconnecting_ = false;
     reconnect_timer_.cancel();
 
-    std::cout << "[bto] 停止桥接服务..." << std::endl;
+    spdlog::info("[bto] 停止桥接服务...");
     auto event = bridge_event(*this, "bridge", "bridge.stop");
     event["local_port"] = listen_port_;
     event["active_sessions"] = active_session_count();
@@ -262,18 +277,32 @@ void ConnectBridge::initialize_p2p_client() {
     auto self = shared_from_this();
 
     p2p_client_->on_connected([self]() {
-        std::cout << "[bto] P2P 已连接 (DID=" << self->did_ << ")" << std::endl;
-        std::cout << "[bto] 路径: "
-                  << p2p::core::P2PClient::ToString(self->p2p_client_->active_path())
-                  << std::endl;
+        spdlog::info("[bto] P2P 已连接 (DID={})", self->did_);
+        spdlog::info("[bto] 路径: {}",
+                  p2p::core::P2PClient::ToString(self->p2p_client_->active_path()));
         self->reseed_existing_channels_for_reconnect();
         self->p2p_connected_ = true;
         self->ever_connected_ = true;
         self->reconnecting_ = false;
         self->reconnect_attempts_ = 0;
+        std::vector<int> channels_needing_probe;
+        {
+            std::lock_guard<std::mutex> lock(self->sessions_mutex_);
+            for (auto& [channel_id, handshake] : self->channel_handshakes_) {
+                if (self->uses_relay_channel_handshake()) {
+                    if (handshake.needs_open_probe()) {
+                        channels_needing_probe.push_back(channel_id);
+                    }
+                } else {
+                    handshake.mark_remote_ready();
+                }
+            }
+        }
+        for (int channel_id : channels_needing_probe) {
+            self->maybe_send_open_probe(channel_id);
+        }
         if (!self->last_disconnect_detail_.empty()) {
-            std::cout << "[bto] 已恢复连接，上次断开原因: " << self->last_disconnect_detail_
-                      << std::endl;
+            spdlog::info("[bto] 已恢复连接，上次断开原因: {}", self->last_disconnect_detail_);
         }
         auto event = bridge_event(*self, "bridge", "p2p.connect.ready");
         event["local_port"] = self->listen_port_;
@@ -292,8 +321,7 @@ void ConnectBridge::initialize_p2p_client() {
                    " — " + self->p2p_client_->last_failure_detail())
                 : std::string("unknown");
         self->last_disconnect_detail_ = reason;
-        std::cerr << "[bto] P2P 断开连接: " << reason
-                  << "，当前会话数=" << self->active_session_count() << std::endl;
+        spdlog::warn("[bto] P2P 断开连接: {}，当前会话数={}", reason, self->active_session_count());
         auto event = bridge_event(*self, "bridge", "p2p.connect.disconnected");
         event["local_port"] = self->listen_port_;
         event["active_sessions"] = self->active_session_count();
@@ -314,18 +342,18 @@ void ConnectBridge::initialize_p2p_client() {
     });
 
     p2p_client_->on_error([self](const std::error_code& ec, const std::string& msg) {
-        std::cerr << "[bto] P2P 错误: " << msg << " (" << ec.message() << ")" << std::endl;
+        spdlog::warn("[bto] P2P 错误: {} ({})", msg, ec.message());
         auto event = bridge_event(*self, "bridge", "p2p.connect.error");
         event["error_code"] = observability::code::kBridgeDisconnected;
         event["error_detail"] = msg + " (" + ec.message() + ")";
         p2p::utils::emit_structured_log(spdlog::level::warn, std::move(event));
     });
 
-    std::cout << "[bto] 初始化 P2PClient (DID=" << did_ << ")" << std::endl;
+    spdlog::info("[bto] 初始化 P2PClient (DID={})", did_);
     p2p_client_->initialize([self](const std::error_code& ec) {
         if (ec) {
             auto message = "P2PClient initialize failed: " + ec.message();
-            std::cerr << "[bto] P2PClient 初始化失败: " << ec.message() << std::endl;
+            spdlog::error("[bto] P2PClient 初始化失败: {}", ec.message());
             auto event = bridge_event(*self, "bridge", "p2p.initialize.failed");
             event["error_code"] = observability::code::kBridgeInitFailed;
             event["error_detail"] = ec.message();
@@ -341,11 +369,11 @@ void ConnectBridge::initialize_p2p_client() {
             return;
         }
 
-        std::cout << "[bto] 连接到 " << self->peer_did_ << " ..." << std::endl;
+        spdlog::info("[bto] 连接到 {} ...", self->peer_did_);
         self->p2p_client_->connect(self->peer_did_, [self](const std::error_code& ec) {
             if (ec) {
                 auto message = "P2P connect failed: " + ec.message();
-                std::cerr << "[bto] P2P 连接失败: " << ec.message() << std::endl;
+                spdlog::error("[bto] P2P 连接失败: {}", ec.message());
                 auto event = bridge_event(*self, "bridge", "p2p.connect.failed");
                 event["error_code"] = observability::code::kBridgeConnectFailed;
                 event["error_detail"] = ec.message();
@@ -360,7 +388,7 @@ void ConnectBridge::initialize_p2p_client() {
                 self->stop();
                 return;
             }
-            std::cout << "[bto] P2P 连接成功，等待 SSH 连入..." << std::endl;
+            spdlog::info("[bto] P2P 连接成功，等待 SSH 连入...");
             if (self->on_ready_) self->on_ready_();
         });
     });
@@ -372,13 +400,16 @@ void ConnectBridge::schedule_reconnect(const std::string& reason) {
     }
     reconnecting_ = true;
     ++reconnect_attempts_;
-    std::cerr << "[bto] 准备重连 relay（第 " << reconnect_attempts_
-              << " 次），原因: " << reason << std::endl;
+    spdlog::warn("[bto] 准备重连 relay（第 {} 次），原因: {}", reconnect_attempts_, reason);
     auto event = bridge_event(*this, "bridge", "p2p.reconnect.scheduled");
     event["attempt"] = reconnect_attempts_;
     event["error_detail"] = reason;
     p2p::utils::emit_structured_log(spdlog::level::warn, std::move(event));
-    reconnect_timer_.expires_after(std::chrono::seconds(2));
+    // Exponential backoff: 2s, 4s, 8s, 16s, 32s, 60s max
+    const auto delay_sec = std::min<std::size_t>(
+        std::size_t{2} << std::min(reconnect_attempts_ - 1, std::size_t{5}), 60);
+    spdlog::warn("[bto] 将在 {}s 后重连...", delay_sec);
+    reconnect_timer_.expires_after(std::chrono::seconds(delay_sec));
     auto self = shared_from_this();
     reconnect_timer_.async_wait([self](const boost::system::error_code& ec) {
         if (ec || self->stopping_) {
@@ -402,6 +433,11 @@ void ConnectBridge::reset_p2p_client() {
     p2p_client_.reset();
 }
 
+auto ConnectBridge::uses_relay_channel_handshake() const -> bool {
+    return p2p_client_ &&
+           bto::daemon::should_use_channel_handshake(p2p_client_->active_path());
+}
+
 void ConnectBridge::reseed_existing_channels_for_reconnect() {
     if (!p2p_client_) {
         return;
@@ -412,6 +448,14 @@ void ConnectBridge::reseed_existing_channels_for_reconnect() {
         for (const auto& [channel_id, session_id] : channel_to_session_) {
             (void)session_id;
             max_channel_id = std::max(max_channel_id, channel_id);
+        }
+        for (auto& [channel_id, handshake] : channel_handshakes_) {
+            (void)channel_id;
+            if (uses_relay_channel_handshake()) {
+                handshake.on_reconnect();
+            } else {
+                handshake.mark_remote_ready();
+            }
         }
     }
     for (int next = 0; next < max_channel_id; ++next) {
@@ -451,8 +495,7 @@ void ConnectBridge::close_session_for_channel(int channel_id, const std::string&
         }
         session = session_it->second;
     }
-    std::cerr << "[bto] 关闭会话，原因: " << reason
-              << " (channel=" << channel_id << ")" << std::endl;
+    spdlog::warn("[bto] 关闭会话，原因: {} (channel={})", reason, channel_id);
     auto event = bridge_event(*this, "session", "session.closed");
     event["channel_id"] = channel_id;
     event["error_detail"] = reason;
@@ -475,6 +518,63 @@ void ConnectBridge::flush_pending_channel_data() {
     }
 }
 
+void ConnectBridge::flush_pending_channel_data(int channel_id) {
+    std::deque<std::vector<uint8_t>> pending;
+    {
+        std::lock_guard<std::mutex> lock(sessions_mutex_);
+        auto it = pending_channel_data_.find(channel_id);
+        if (it == pending_channel_data_.end()) {
+            return;
+        }
+        pending.swap(it->second);
+        pending_channel_data_.erase(it);
+        pending_channel_bytes_.erase(channel_id);
+    }
+
+    for (auto& frame : pending) {
+        send_to_p2p(channel_id, frame);
+    }
+}
+
+void ConnectBridge::maybe_send_open_probe(int channel_id) {
+    if (!p2p_client_ || !p2p_connected_ || !uses_relay_channel_handshake()) {
+        return;
+    }
+
+    {
+        std::lock_guard<std::mutex> lock(sessions_mutex_);
+        auto it = channel_handshakes_.find(channel_id);
+        if (it == channel_handshakes_.end() || !it->second.needs_open_probe()) {
+            return;
+        }
+        it->second.mark_open_probe_sent();
+    }
+
+    auto weak_self = weak_from_this();
+    p2p_client_->send_data(channel_id, {}, [weak_self, channel_id](const std::error_code& ec) {
+        auto self = weak_self.lock();
+        if (!self || !ec) {
+            return;
+        }
+        if (ec == std::make_error_code(std::errc::not_connected)) {
+            std::lock_guard<std::mutex> lock(self->sessions_mutex_);
+            auto it = self->channel_handshakes_.find(channel_id);
+            if (it != self->channel_handshakes_.end()) {
+                it->second.on_reconnect();
+            }
+            return;
+        }
+
+        auto event = bridge_event(*self, "session", "session.open_probe.failed");
+        event["channel_id"] = channel_id;
+        event["error_detail"] = ec.message();
+        p2p::utils::emit_structured_log(spdlog::level::warn, std::move(event));
+        self->close_session_for_channel(
+            channel_id,
+            "failed to send relay channel open probe: " + ec.message());
+    });
+}
+
 void ConnectBridge::do_accept() {
     if (stopping_) return;
 
@@ -484,7 +584,7 @@ void ConnectBridge::do_accept() {
     acceptor_.async_accept(*socket, [self, socket](const boost::system::error_code& ec) {
         if (ec) {
             if (ec != boost::asio::error::operation_aborted) {
-                std::cerr << "[bto] accept 错误: " << ec.message() << std::endl;
+                spdlog::error("[bto] accept 错误: {}", ec.message());
                 auto event = bridge_event(*self, "bridge", "bridge.accept.failed");
                 event["local_port"] = self->listen_port_;
                 event["error_code"] = observability::code::kBridgeAcceptFailed;
@@ -495,7 +595,7 @@ void ConnectBridge::do_accept() {
         }
 
         if (!self->p2p_connected_) {
-            std::cerr << "[bto] P2P 未连接，拒绝 SSH 连入" << std::endl;
+            spdlog::warn("[bto] P2P 未连接，拒绝 SSH 连入");
             auto event = bridge_event(*self, "session", "session.accept.rejected");
             event["local_port"] = self->listen_port_;
             event["error_code"] = observability::code::kBridgeDisconnected;
@@ -509,7 +609,7 @@ void ConnectBridge::do_accept() {
         // 创建通道
         int channel_id = self->p2p_client_->create_channel();
         if (channel_id < 0) {
-            std::cerr << "[bto] create_channel 失败" << std::endl;
+            spdlog::error("[bto] create_channel 失败");
             socket->close();
             self->do_accept();
             return;
@@ -518,7 +618,7 @@ void ConnectBridge::do_accept() {
         // 创建会话
         int session_id = self->next_session_id_++;
         auto session = std::make_shared<TunnelSession>(
-            session_id, self->ioc_, socket, self.get());
+            session_id, self->ioc_, socket, self->weak_from_this());
         session->set_channel_id(channel_id);
 
         session->set_cleanup_callback([self](int id) {
@@ -529,21 +629,27 @@ void ConnectBridge::do_accept() {
             std::lock_guard<std::mutex> lock(self->sessions_mutex_);
             self->sessions_[session_id] = session;
             self->channel_to_session_[channel_id] = session_id;
+            if (self->uses_relay_channel_handshake()) {
+                self->channel_handshakes_[channel_id] = bto::daemon::ChannelHandshake{};
+            }
         }
         if (self->on_session_count_changed_) {
             self->on_session_count_changed_(self->active_session_count());
         }
 
-        std::cout << "[bto] #" << session_id << " 新连接 (channel=" << channel_id << ")" << std::endl;
+        spdlog::info("[bto] #{} 新连接 (channel={})", session_id, channel_id);
 
         if (!self->ssh_user_.empty()) {
-            std::cout << "[bto] SSH 连接命令: ssh ";
             if (!self->ssh_key_.empty()) {
-                std::cout << "-i " << self->ssh_key_ << " ";
+                spdlog::info("[bto] SSH 连接命令: ssh -i {} {}@localhost -p {}",
+                             self->ssh_key_, self->ssh_user_, self->listen_port_);
+            } else {
+                spdlog::info("[bto] SSH 连接命令: ssh {}@localhost -p {}",
+                             self->ssh_user_, self->listen_port_);
             }
-            std::cout << self->ssh_user_ << "@localhost -p " << self->listen_port_ << std::endl;
         }
 
+        self->maybe_send_open_probe(channel_id);
         session->start();
         self->do_accept();
     });
@@ -551,7 +657,6 @@ void ConnectBridge::do_accept() {
 
 void ConnectBridge::remove_session(int id) {
     std::size_t remaining = 0;
-    int channel_id_to_clear = -1;
     {
         std::lock_guard<std::mutex> lock(sessions_mutex_);
 
@@ -559,9 +664,11 @@ void ConnectBridge::remove_session(int id) {
         if (it == sessions_.end()) return;
 
         int channel_id = it->second->channel_id();
-        channel_id_to_clear = channel_id;
         if (channel_id >= 0) {
             channel_to_session_.erase(channel_id);
+            channel_handshakes_.erase(channel_id);
+            pending_channel_data_.erase(channel_id);
+            pending_channel_bytes_.erase(channel_id);
             if (p2p_client_) {
                 p2p_client_->close_channel(channel_id);
             }
@@ -571,19 +678,29 @@ void ConnectBridge::remove_session(int id) {
         remaining = sessions_.size();
     }
 
-    if (channel_id_to_clear >= 0) {
-        std::lock_guard<std::mutex> lock(sessions_mutex_);
-        pending_channel_data_.erase(channel_id_to_clear);
-        pending_channel_bytes_.erase(channel_id_to_clear);
-    }
-
-    std::cout << "[bto] #" << id << " 会话已清理 (剩余 " << remaining << " 个)" << std::endl;
+    spdlog::info("[bto] #{} 会话已清理 (剩余 {} 个)", id, remaining);
     if (on_session_count_changed_) {
         on_session_count_changed_(remaining);
     }
 }
 
 void ConnectBridge::send_to_p2p(int channel_id, const std::vector<uint8_t>& data) {
+    bool should_buffer_for_handshake = false;
+    if (uses_relay_channel_handshake()) {
+        std::lock_guard<std::mutex> lock(sessions_mutex_);
+        auto it = channel_handshakes_.find(channel_id);
+        should_buffer_for_handshake =
+            it != channel_handshakes_.end() && it->second.should_buffer_tcp_payload();
+    }
+    if (should_buffer_for_handshake) {
+        if (!queue_pending_channel_data(channel_id, data)) {
+            close_session_for_channel(
+                channel_id,
+                "channel handshake backlog exceeded local safety limit");
+        }
+        return;
+    }
+
     if (!p2p_client_ || !p2p_connected_) {
         if (!queue_pending_channel_data(channel_id, data)) {
             close_session_for_channel(channel_id, "relay reconnect backlog exceeded local safety limit");
@@ -603,32 +720,50 @@ void ConnectBridge::send_to_p2p(int channel_id, const std::vector<uint8_t>& data
                 }
                 return;
             }
-            std::cerr << "[bto] P2P 发送失败 (channel=" << channel_id
-                      << "): " << ec.message() << std::endl;
+            spdlog::warn("[bto] P2P 发送失败 (channel={}): {}", channel_id, ec.message());
         }
     });
 }
 
 void ConnectBridge::on_p2p_data(int channel_id, const std::vector<uint8_t>& data) {
-    std::cout << "[bto] P2P 收到数据 channel=" << channel_id
-              << " size=" << data.size() << std::endl;
+    spdlog::debug("[bto] P2P 收到数据 channel={} size={}", channel_id, data.size());
 
-    std::lock_guard<std::mutex> lock(sessions_mutex_);
+    std::shared_ptr<TunnelSession> session;
+    bool handshake_completed = false;
+    {
+        std::lock_guard<std::mutex> lock(sessions_mutex_);
 
-    auto it = channel_to_session_.find(channel_id);
-    if (it == channel_to_session_.end()) {
-        std::cerr << "[bto] 收到未知 channel 数据: " << channel_id << std::endl;
+        auto it = channel_to_session_.find(channel_id);
+        if (it == channel_to_session_.end()) {
+            spdlog::warn("[bto] 收到未知 channel 数据: {}", channel_id);
+            return;
+        }
+
+        auto handshake_it = channel_handshakes_.find(channel_id);
+        if (handshake_it != channel_handshakes_.end() &&
+            handshake_it->second.should_buffer_tcp_payload()) {
+            handshake_it->second.mark_remote_ready();
+            handshake_completed = true;
+        }
+
+        int session_id = it->second;
+        auto session_it = sessions_.find(session_id);
+        if (session_it == sessions_.end()) {
+            spdlog::warn("[bto] 会话 #{} 不存在", session_id);
+            return;
+        }
+        session = session_it->second;
+    }
+
+    if (handshake_completed) {
+        flush_pending_channel_data(channel_id);
+    }
+
+    if (data.empty()) {
         return;
     }
 
-    int session_id = it->second;
-    auto session_it = sessions_.find(session_id);
-    if (session_it == sessions_.end()) {
-        std::cerr << "[bto] 会话 #" << session_id << " 不存在" << std::endl;
-        return;
-    }
-
-    session_it->second->on_p2p_data(data);
+    session->on_p2p_data(data);
 }
 
 }  // namespace bto

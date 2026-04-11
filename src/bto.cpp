@@ -32,9 +32,11 @@
 #include <iomanip>
 #include <iostream>
 #include <limits.h>
+#include <memory>
 #include <optional>
 #include <thread>
 #include <vector>
+#include <set>
 #include <unistd.h>
 #include <fcntl.h>
 #include <sys/wait.h>
@@ -157,6 +159,125 @@ auto resolve_target(const bto::config::Config& config, const std::string& input)
     return target;
 }
 
+auto resolve_exact_config_target(const bto::config::Config& config, const std::string& input)
+    -> std::optional<ResolvedTarget> {
+    if (auto it = config.peers.find(input); it != config.peers.end()) {
+        ResolvedTarget target;
+        target.name = it->first;
+        target.did = it->second.did;
+        target.user = it->second.user.empty() ? default_ssh_user() : it->second.user;
+        target.key = it->second.key;
+        target.ssh_host = it->second.host;
+        target.ssh_port = it->second.port;
+        target.from_config = true;
+        return target;
+    }
+
+    for (const auto& [name, peer] : config.peers) {
+        if (peer.did == input) {
+            ResolvedTarget target;
+            target.name = name;
+            target.did = peer.did;
+            target.user = peer.user.empty() ? default_ssh_user() : peer.user;
+            target.key = peer.key;
+            target.ssh_host = peer.host;
+            target.ssh_port = peer.port;
+            target.from_config = true;
+            return target;
+        }
+    }
+    return std::nullopt;
+}
+
+auto is_configured_peer(const bto::config::Config& config,
+                        const std::string& target_name,
+                        const std::string& target_did) -> bool {
+    if (config.peers.contains(target_name)) {
+        return true;
+    }
+    return std::any_of(
+        config.peers.begin(), config.peers.end(),
+        [&](const auto& item) { return item.second.did == target_did; });
+}
+
+auto active_unconfigured_targets(const bto::config::Config& config)
+    -> std::vector<bto::daemon::ConnectionView> {
+    bto::daemon::DaemonClient client(bto::config::default_daemon_socket_path());
+    if (!client.is_available()) {
+        return {};
+    }
+
+    try {
+        auto response = client.request(bto::daemon::Json{
+            {"action", "list_connections"},
+        });
+        if (!response.value("ok", false)) {
+            return {};
+        }
+
+        std::vector<bto::daemon::ConnectionView> visible;
+        std::set<std::string> seen;
+        for (const auto& item : response["result"]["connections"]) {
+            const auto target_name = item.value("target_name", item.value("target_did", ""));
+            const auto target_did = item.value("target_did", target_name);
+            if (target_name.empty() || is_configured_peer(config, target_name, target_did)) {
+                continue;
+            }
+            const auto dedupe_key = target_name + "\n" + target_did;
+            if (!seen.insert(dedupe_key).second) {
+                continue;
+            }
+
+            bto::daemon::ConnectionView view;
+            view.target_name = target_name;
+            view.target_did = target_did;
+            view.local_port = item.value("local_port", 0);
+            view.active_sessions = item.value("active_sessions", 0);
+            view.live_tunnels = item.value("live_tunnels", 0);
+            view.state = item.value("state", "");
+            view.last_error = item.value("last_error", "");
+            visible.push_back(std::move(view));
+        }
+        return visible;
+    } catch (...) {
+        return {};
+    }
+}
+
+auto resolve_active_daemon_target_exact(const std::string& socket_path, const std::string& input)
+    -> std::optional<ResolvedTarget> {
+    bto::daemon::DaemonClient client(socket_path);
+    if (!client.is_available()) {
+        return std::nullopt;
+    }
+
+    try {
+        auto response = client.request(bto::daemon::Json{
+            {"action", "list_connections"},
+        });
+        if (!response.value("ok", false)) {
+            return std::nullopt;
+        }
+
+        for (const auto& item : response["result"]["connections"]) {
+            const auto target_name = item.value("target_name", item.value("target_did", ""));
+            const auto target_did = item.value("target_did", target_name);
+            if (target_name != input && target_did != input) {
+                continue;
+            }
+
+            ResolvedTarget target;
+            target.name = target_name;
+            target.did = target_did;
+            target.user = default_ssh_user();
+            return target;
+        }
+    } catch (...) {
+    }
+
+    return std::nullopt;
+}
+
 struct UpgradeDefaults {
     std::string artifact_name;
     std::string live_binary;
@@ -216,13 +337,17 @@ auto spawn_ssh_process(const std::string& user,
     -> std::optional<pid_t> {
     pid_t pid = fork();
     if (pid == 0) {
-        auto storage = bto::build_ssh_argv(
+        auto maybe_argv = bto::build_ssh_argv(
             user,
             key,
             port,
             host_key_alias,
             insecure_ssh_connect_allowed(),
             ssh_known_hosts_path());
+        if (!maybe_argv) {
+            _exit(126);  // validation failure
+        }
+        auto& storage = *maybe_argv;
         std::vector<char*> argv;
 
         for (auto& item : storage) {
@@ -311,11 +436,6 @@ auto try_connect_daemon(const bto::cli::Command& cmd, const bto::config::Config&
         return EC::USAGE;
     }
 
-    auto target = resolve_target(config, cmd.target);
-    if (target.from_config) {
-        std::cout << "解析 '" << cmd.target << "' → " << target.did << std::endl;
-    }
-
     auto local_did = cmd.did.empty() ? config.did : cmd.did;
     if (local_did.empty()) {
         local_did = "bto-client";
@@ -335,6 +455,18 @@ auto try_connect_daemon(const bto::cli::Command& cmd, const bto::config::Config&
     }
 
     bto::daemon::DaemonClient client(socket_path);
+    ResolvedTarget target;
+    if (auto exact = resolve_exact_config_target(config, cmd.target)) {
+        target = *exact;
+    } else if (auto active = resolve_active_daemon_target_exact(socket_path, cmd.target)) {
+        target = *active;
+    } else {
+        target = resolve_target(config, cmd.target);
+    }
+    if (target.from_config) {
+        std::cout << "解析 '" << cmd.target << "' → " << target.did << std::endl;
+    }
+
     bto::daemon::Json request{
         {"action", "create_session"},
         {"trace_id", trace_id},
@@ -448,34 +580,38 @@ int cmd_connect_legacy(const bto::cli::Command& cmd, bto::config::Config& config
         return EC::NETWORK;
     }
 
-    int exit_code = EC::OK;
+    // Use shared state for the SSH child-wait thread to avoid data races
+    // on stack-local exit_code after ioc.run() returns.
+    auto exit_code = std::make_shared<std::atomic<int>>(EC::OK);
     bool ssh_started = false;
-    bridge->on_ready([&]() {
+    bridge->on_ready([&ioc, &ssh_started, exit_code,
+                      user = target.user, key = target.key,
+                      listen_port = cmd.listen_port, did = target.did]() {
         if (ssh_started) {
             return;
         }
         ssh_started = true;
-        auto pid = spawn_ssh_process(target.user, target.key, cmd.listen_port, target.did);
+        auto pid = spawn_ssh_process(user, key, listen_port, did);
         if (!pid) {
-            exit_code = EC::NETWORK;
+            exit_code->store(EC::NETWORK, std::memory_order_relaxed);
             ioc.stop();
             return;
         }
-        std::thread([&ioc, &exit_code, pid]() {
-            exit_code = wait_for_child(*pid);
+        std::thread([&ioc, exit_code, pid]() {
+            exit_code->store(wait_for_child(*pid), std::memory_order_relaxed);
             ioc.stop();
         }).detach();
     });
 
-    bridge->on_failed([&](const std::string& message) {
+    bridge->on_failed([&ioc, exit_code](const std::string& message) {
         std::cerr << "[legacy] " << message << "\n";
-        exit_code = EC::NETWORK;
+        exit_code->store(EC::NETWORK, std::memory_order_relaxed);
         ioc.stop();
     });
 
     ioc.run();
     g_ioc.store(nullptr, std::memory_order_release);
-    return exit_code;
+    return exit_code->load(std::memory_order_relaxed);
 }
 
 int cmd_connect(const bto::cli::Command& cmd, bto::config::Config& config) {
@@ -499,17 +635,33 @@ int cmd_connect(const bto::cli::Command& cmd, bto::config::Config& config) {
 }
 
 int cmd_list(const bto::config::Config& config) {
+    const auto active_unconfigured = active_unconfigured_targets(config);
+
     if (config.peers.empty()) {
-        std::cout << "暂无已配置设备\n"
-                  << "提示: 运行 bto add <name> --did <did> 添加设备\n";
-        return EC::OK;
+        std::cout << "暂无已配置设备\n";
+        if (active_unconfigured.empty()) {
+            std::cout << "提示: 运行 bto add <name> --did <did> 添加设备\n";
+            return EC::OK;
+        }
+    } else {
+        std::cout << "已配置设备 (" << config.peers.size() << " 台):\n";
+        for (const auto& [name, peer] : config.peers) {
+            std::cout << "  " << name;
+            if (peer.did != name) std::cout << "  DID=" << peer.did;
+            if (!peer.user.empty()) std::cout << "  user=" << peer.user;
+            std::cout << "\n";
+        }
     }
-    std::cout << "已配置设备 (" << config.peers.size() << " 台):\n";
-    for (const auto& [name, peer] : config.peers) {
-        std::cout << "  " << name;
-        if (peer.did != name) std::cout << "  DID=" << peer.did;
-        if (!peer.user.empty()) std::cout << "  user=" << peer.user;
-        std::cout << "\n";
+
+    if (!active_unconfigured.empty()) {
+        std::cout << "活动但未配置设备 (" << active_unconfigured.size() << " 台):\n";
+        for (const auto& item : active_unconfigured) {
+            std::cout << "  " << item.target_name;
+            if (!item.target_did.empty() && item.target_did != item.target_name) {
+                std::cout << "  DID=" << item.target_did;
+            }
+            std::cout << "\n";
+        }
     }
     return EC::OK;
 }

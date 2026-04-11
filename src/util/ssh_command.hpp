@@ -1,10 +1,29 @@
 #pragma once
 
+#include <algorithm>
 #include <cstdint>
+#include <optional>
 #include <string>
 #include <vector>
 
 namespace bto {
+
+/**
+ * @brief Validate that a string does not contain shell-dangerous characters.
+ * @return true if safe, false if dangerous characters are present.
+ */
+inline bool is_safe_shell_arg(const std::string& s) {
+    static constexpr const char* kDangerousChars = "@;|&$`\"'\\!(){}[]<>?*~#\n\r";
+    return s.find_first_of(kDangerousChars) == std::string::npos;
+}
+
+/**
+ * @brief Validate that a path does not contain path-traversal sequences.
+ * @return true if safe, false if ".." is found.
+ */
+inline bool is_safe_path(const std::string& path) {
+    return path.find("..") == std::string::npos;
+}
 
 inline auto build_ssh_argv(const std::string& user,
                            const std::string& key,
@@ -12,7 +31,17 @@ inline auto build_ssh_argv(const std::string& user,
                            const std::string& host_key_alias,
                            bool insecure_connect = false,
                            const std::string& known_hosts_path = {})
-    -> std::vector<std::string> {
+    -> std::optional<std::vector<std::string>> {
+    // Validate user: must not contain shell-dangerous characters
+    if (user.empty() || !is_safe_shell_arg(user)) {
+        return std::nullopt;
+    }
+
+    // Validate key path: must not contain path traversal
+    if (!key.empty() && (!is_safe_path(key) || !is_safe_shell_arg(key))) {
+        return std::nullopt;
+    }
+
     std::vector<std::string> argv;
     argv.emplace_back("ssh");
 

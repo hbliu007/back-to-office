@@ -18,6 +18,13 @@
 #include <cstdlib>
 #include <array>
 #include <string>
+#include <thread>
+#include <vector>
+#include <sys/socket.h>
+#include <sys/un.h>
+#include <unistd.h>
+
+#include "daemon/common.hpp"
 
 namespace fs = std::filesystem;
 
@@ -68,6 +75,10 @@ public:
         return (path_ / ".bto" / "config.toml").string();
     }
 
+    std::string daemon_socket_path() const {
+        return (path_ / ".peerlink" / "run" / "peerlinkd.sock").string();
+    }
+
     void write_config(const std::string& content) {
         auto dir = path_ / ".bto";
         fs::create_directories(dir);
@@ -84,6 +95,76 @@ public:
 private:
     fs::path path_;
     static inline int counter_ = 0;
+};
+
+class FakeDaemonServer {
+public:
+    FakeDaemonServer(std::string socket_path, std::vector<bto::daemon::Json> responses)
+        : socket_path_(std::move(socket_path))
+        , responses_(std::move(responses)) {}
+
+    void start() {
+        fs::create_directories(fs::path(socket_path_).parent_path());
+        ::unlink(socket_path_.c_str());
+
+        server_fd_ = ::socket(AF_UNIX, SOCK_STREAM, 0);
+        ASSERT_GE(server_fd_, 0);
+
+        sockaddr_un addr{};
+        addr.sun_family = AF_UNIX;
+        std::snprintf(addr.sun_path, sizeof(addr.sun_path), "%s", socket_path_.c_str());
+        ASSERT_EQ(::bind(server_fd_, reinterpret_cast<sockaddr*>(&addr), sizeof(addr)), 0);
+        ASSERT_EQ(::listen(server_fd_, 8), 0);
+
+        thread_ = std::thread([this]() { serve(); });
+    }
+
+    ~FakeDaemonServer() {
+        if (server_fd_ >= 0) {
+            ::shutdown(server_fd_, SHUT_RDWR);
+            ::close(server_fd_);
+        }
+        if (thread_.joinable()) {
+            thread_.join();
+        }
+        ::unlink(socket_path_.c_str());
+    }
+
+    auto requests() const -> const std::vector<bto::daemon::Json>& {
+        return requests_;
+    }
+
+private:
+    void serve() {
+        for (const auto& response : responses_) {
+            int client_fd = ::accept(server_fd_, nullptr, nullptr);
+            if (client_fd < 0) {
+                return;
+            }
+
+            std::string request;
+            char ch = '\0';
+            while (::read(client_fd, &ch, 1) == 1) {
+                if (ch == '\n') {
+                    break;
+                }
+                request.push_back(ch);
+            }
+            if (!request.empty()) {
+                requests_.push_back(bto::daemon::Json::parse(request));
+            }
+
+            const auto payload = response.dump() + "\n";
+            (void)::write(client_fd, payload.data(), payload.size());
+            ::close(client_fd);
+        }
+    }
+
+    std::string socket_path_;
+    std::vector<bto::daemon::Json> responses_;
+    std::vector<bto::daemon::Json> requests_;
+    int server_fd_ = -1;
+    std::thread thread_;
 };
 
 }  // namespace
@@ -158,6 +239,87 @@ relay = "host:9700"
     EXPECT_NE(r.output.find("server-b"), std::string::npos);
     EXPECT_NE(r.output.find("admin"), std::string::npos);
     EXPECT_NE(r.output.find("2"), std::string::npos);  // "2 台"
+}
+
+TEST(Commands, ListShowsActiveUnconfiguredDaemonTargets) {
+    IsolatedHome env;
+    env.write_config(R"(
+did = "test"
+relay = "host:9700"
+
+[peers.office-213]
+  did = "office-213"
+  user = "lhb"
+)");
+
+    FakeDaemonServer daemon(
+        env.daemon_socket_path(),
+        {
+            bto::daemon::make_ok({{"connections", 2}, {"sessions", 0}}),
+            bto::daemon::make_ok({{"connections", bto::daemon::Json::array({
+                {
+                    {"target_name", "office-213"},
+                    {"target_did", "office-213"},
+                    {"local_port", 2231},
+                    {"state", "ready"},
+                    {"active_sessions", 1},
+                    {"live_tunnels", 1},
+                },
+                {
+                    {"target_name", "124"},
+                    {"target_did", "124"},
+                    {"local_port", 2234},
+                    {"state", "ready"},
+                    {"active_sessions", 1},
+                    {"live_tunnels", 1},
+                },
+            })}})
+        });
+    daemon.start();
+
+    auto r = exec_bto("list", env.home());
+
+    EXPECT_EQ(r.exit_code, 0);
+    EXPECT_NE(r.output.find("已配置设备 (1 台)"), std::string::npos);
+    EXPECT_NE(r.output.find("office-213"), std::string::npos);
+    EXPECT_NE(r.output.find("活动但未配置设备 (1 台)"), std::string::npos);
+    EXPECT_NE(r.output.find("124"), std::string::npos);
+}
+
+TEST(Commands, ListDoesNotHideDifferentUnconfiguredSuffixTarget) {
+    IsolatedHome env;
+    env.write_config(R"(
+did = "test"
+relay = "host:9700"
+
+[peers.office-124]
+  did = "office-124"
+  user = "lhb"
+)");
+
+    FakeDaemonServer daemon(
+        env.daemon_socket_path(),
+        {
+            bto::daemon::make_ok({{"connections", 1}, {"sessions", 0}}),
+            bto::daemon::make_ok({{"connections", bto::daemon::Json::array({
+                {
+                    {"target_name", "124"},
+                    {"target_did", "124"},
+                    {"local_port", 2234},
+                    {"state", "ready"},
+                    {"active_sessions", 1},
+                    {"live_tunnels", 1},
+                },
+            })}})
+        });
+    daemon.start();
+
+    auto r = exec_bto("list", env.home());
+
+    EXPECT_EQ(r.exit_code, 0);
+    EXPECT_NE(r.output.find("office-124"), std::string::npos);
+    EXPECT_NE(r.output.find("活动但未配置设备 (1 台)"), std::string::npos);
+    EXPECT_NE(r.output.find("\n  124\n"), std::string::npos);
 }
 
 TEST(Commands, ListDefaultNoArgs) {
@@ -356,6 +518,44 @@ TEST(Commands, ConnectNoRelay) {
     auto r = exec_bto("connect some-peer", env.home());
 
     EXPECT_EQ(r.exit_code, 2);  // CONFIG
+}
+
+TEST(Commands, ConnectPrefersExactActiveTargetOverConfigSuffixMatch) {
+    IsolatedHome env;
+    env.write_config(R"(
+did = "test"
+relay = "host:9700"
+
+[peers.office-124]
+  did = "office-124"
+  user = "lhb"
+)");
+
+    FakeDaemonServer daemon(
+        env.daemon_socket_path(),
+        {
+            bto::daemon::make_ok({{"connections", 1}, {"sessions", 0}}),
+            bto::daemon::make_ok({{"connections", bto::daemon::Json::array({
+                {
+                    {"target_name", "124"},
+                    {"target_did", "124"},
+                    {"local_port", 2234},
+                    {"state", "ready"},
+                    {"active_sessions", 1},
+                    {"live_tunnels", 1},
+                },
+            })}}),
+            bto::daemon::make_error("BTO_DAEMON_CONNECT_FAILED", "expected failure")
+        });
+    daemon.start();
+
+    auto r = exec_bto("connect 124", env.home());
+
+    EXPECT_EQ(r.exit_code, 3);
+    ASSERT_GE(daemon.requests().size(), 3u);
+    EXPECT_EQ(daemon.requests()[2].value("action", ""), "create_session");
+    EXPECT_EQ(daemon.requests()[2].value("target_name", ""), "124");
+    EXPECT_EQ(daemon.requests()[2].value("target_did", ""), "124");
 }
 
 TEST(Commands, UpgradeNoTarget) {

@@ -15,6 +15,7 @@
 
 #pragma once
 
+#include "daemon/channel_handshake.hpp"
 #include "p2p/core/p2p_client.hpp"
 #include <boost/asio.hpp>
 #include <deque>
@@ -45,7 +46,7 @@ public:
     TunnelSession(int id,
                   boost::asio::io_context& ioc,
                   std::shared_ptr<boost::asio::ip::tcp::socket> socket,
-                  ConnectBridge* bridge);
+                  std::weak_ptr<ConnectBridge> bridge);
 
     ~TunnelSession();
 
@@ -65,11 +66,12 @@ private:
     void do_write();
 
     static constexpr std::size_t kTcpReadBufferSize = 8192;
+    static constexpr std::size_t kMaxWriteQueueSize = 256;
 
     int id_;
     boost::asio::io_context& ioc_;
     std::shared_ptr<boost::asio::ip::tcp::socket> tcp_socket_;
-    ConnectBridge* bridge_;  // 非拥有指针，生命周期由 Bridge 保证
+    std::weak_ptr<ConnectBridge> bridge_;  // weak_ptr 防止异步回调中悬垂引用
     int channel_id_ = -1;
     bool closed_ = false;
     CleanupCallback on_cleanup_;
@@ -132,7 +134,10 @@ private:
     void reset_p2p_client();
     void reseed_existing_channels_for_reconnect();
     void flush_pending_channel_data();
+    void flush_pending_channel_data(int channel_id);
+    auto uses_relay_channel_handshake() const -> bool;
     auto queue_pending_channel_data(int channel_id, const std::vector<uint8_t>& data) -> bool;
+    void maybe_send_open_probe(int channel_id);
     void close_session_for_channel(int channel_id, const std::string& reason);
     void do_accept();
     void remove_session(int id);
@@ -159,6 +164,7 @@ private:
     // 会话管理
     std::map<int, std::shared_ptr<TunnelSession>> sessions_;
     std::map<int, int> channel_to_session_;  // channel_id → session_id
+    std::map<int, bto::daemon::ChannelHandshake> channel_handshakes_;
     std::map<int, std::deque<std::vector<uint8_t>>> pending_channel_data_;
     std::map<int, std::size_t> pending_channel_bytes_;
     mutable std::mutex sessions_mutex_;

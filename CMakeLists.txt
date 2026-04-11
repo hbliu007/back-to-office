@@ -115,6 +115,7 @@ if(BTO_BUILD_TESTS)
         test/test_config.cpp
         test/test_commands.cpp
         test/test_observability.cpp
+        test/test_channel_handshake.cpp
         test/test_session_lifecycle.cpp
         test/test_ssh_command.cpp
         test/test_manifest_client.cpp
