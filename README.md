@@ -23,7 +23,7 @@ Connect to your office GPU rig from a coffee shop and run <strong>Claude Code</s
 </p>
 
 <p align="center">
-<a href="#get-started-in-30-seconds">Get Started</a> · <a href="#how-it-works">How It Works</a> · <a href="#how-it-compares">Comparison</a> · <a href="#mobile--ssh-from-your-phone">Mobile</a>
+<a href="http://47.99.216.25"><strong>https://bto.asia</strong></a> · <a href="#get-started-in-30-seconds">Get Started</a> · <a href="#how-it-works">How It Works</a> · <a href="#how-it-compares">Comparison</a> · <a href="#mobile--ssh-from-your-phone">Mobile</a>
 </p>
 
 ---
@@ -62,7 +62,7 @@ No VPN. No public server. No firewall rules. No third-party account.
 ### 1. Install
 
 ```console
-$ curl -fsSL https://raw.githubusercontent.com/hbliu007/back-to-office/main/install.sh | bash
+$ curl -fsSL http://47.99.216.25/install.sh | sh
 ```
 
 ### 2. Office Machine <sub>(run once, keep alive)</sub>
@@ -170,7 +170,7 @@ BTO runs on Android via [Termux](https://termux.dev). SSH into your office from 
 
 ```console
 $ pkg install curl
-$ curl -fsSL https://raw.githubusercontent.com/hbliu007/back-to-office/main/install.sh | bash
+$ curl -fsSL http://47.99.216.25/install.sh | sh
 $ bto 213
   ✓ Connected to office-213
   ✓ Forwarding localhost:2222
