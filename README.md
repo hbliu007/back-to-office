@@ -23,7 +23,7 @@ Connect to your office GPU rig from a coffee shop and run <strong>Claude Code</s
 </p>
 
 <p align="center">
-<a href="http://47.99.216.25"><strong>https://bto.asia</strong></a> · <a href="#get-started-in-30-seconds">Get Started</a> · <a href="#how-it-works">How It Works</a> · <a href="#how-it-compares">Comparison</a> · <a href="#mobile--ssh-from-your-phone">Mobile</a>
+<a href="https://bto.asia"><strong>bto.asia</strong></a> · <a href="#get-started-in-30-seconds">Get Started</a> · <a href="#how-it-works">How It Works</a> · <a href="#how-it-compares">Comparison</a>
 </p>
 
 ---
@@ -52,7 +52,7 @@ $ bto connect office-213
 
 No VPN. No public server. No firewall rules. No third-party account.
 
-**~1,100 lines of C++. ~1 MB binary. One job, done well.**
+**~1 MB binary. One job, done well.**
 
 > [!TIP]
 > **Perfect for AI coding agents** — Use Claude Code, Cursor, or Copilot on your laptop while the heavy lifting runs on your office GPU. BTO gives you the SSH tunnel; the AI does the rest.
@@ -62,8 +62,15 @@ No VPN. No public server. No firewall rules. No third-party account.
 ### 1. Install
 
 ```console
-$ curl -fsSL http://47.99.216.25/install.sh | sh
+$ curl -fsSL https://bto.asia/install.sh | sh
 ```
+
+Or download the binary directly from [Releases](https://github.com/hbliu007/back-to-office/releases/latest).
+
+| Platform | File |
+|----------|------|
+| macOS (Apple Silicon) | `bto-v1.1.0-darwin-arm64.tar.gz` |
+| Linux (x86_64) | `bto-v1.1.0-linux-amd64.tar.gz` |
 
 ### 2. Office Machine <sub>(run once, keep alive)</sub>
 
@@ -88,10 +95,11 @@ That's it. Three steps. No config files, no firewall rules, no IT approval.
 
 > [!NOTE]
 > **Fuzzy matching** — `bto 213` or `bto office` works too. BTO finds the closest match.
+> Works on **macOS, Linux, and Android (Termux)**.
 
 ## How It Works
 
-BTO is built on [PeerLink](https://github.com/hbliu007/peerlink), a lightweight P2P networking library. Each device registers with a self-hosted relay using a DID (Decentralized Identifier). The relay brokers the handshake, then devices establish a **direct P2P tunnel** — even through NAT and firewalls.
+BTO is built on [PeerLink](https://github.com/hbliu007/peerlink), a lightweight P2P networking library. Each device registers with a relay using a DID (Decentralized Identifier). The relay brokers the handshake, then devices establish a **direct P2P tunnel** — even through NAT and firewalls.
 
 ```
 Your Laptop                  Relay Server               Office Machine
@@ -126,23 +134,15 @@ Your Laptop                  Relay Server               Office Machine
 | **3rd-party dependency** | None | None | DERP servers | VPN provider |
 | **Binary size** | **~1 MB** | ~15 MB | ~50 MB | N/A |
 | **Memory usage** | **< 10 MB** | ~30 MB | ~100 MB | N/A |
-| **Mobile support** | Termux | No | App | App |
 | **One-line install** | Yes | Partial | Yes | No |
-
-**Choose BTO when you want:**
-
-- **SSH access to office machines** — not a full mesh VPN
-- **Zero infrastructure** — no public server, no cloud account, no IT ticket
-- **Minimal footprint** — a single ~1 MB binary, no runtime dependencies
-- **Full control** — self-host the relay, own your data, audit the code
 
 ## Features
 
 | | | |
 |:--|:--|:--|
 | **Zero Configuration** | **Cross-Platform** | **Secure by Design** |
-| Single binary, no dependencies | Linux (x86_64, ARM64) | DID-based identity |
-| One-line install via `curl \| sh` | macOS (Apple Silicon, Intel) | Relay-assisted encryption |
+| Single binary, no dependencies | Linux (x86_64, ARM64) | Token-based namespace isolation |
+| One-line install via `curl \| sh` | macOS (Apple Silicon, Intel) | End-to-end encrypted tunnels |
 | Fuzzy peer name matching | Android (Termux) | No credentials stored on relay |
 | TOML config, human-readable | Windows (WSL2, planned) | Self-hosted relay option |
 
@@ -158,22 +158,7 @@ bto daemon --did office-213 --relay relay.bto.asia:9700
 
 # Device management
 bto list                    # List configured peers
-bto add office-215          # Add a peer
-bto remove office-215       # Remove a peer
 bto status                  # Connection status
-bto ping                    # Test relay connectivity
-```
-
-## Mobile — SSH from Your Phone
-
-BTO runs on Android via [Termux](https://termux.dev). SSH into your office from your phone:
-
-```console
-$ pkg install curl
-$ curl -fsSL http://47.99.216.25/install.sh | sh
-$ bto 213
-  ✓ Connected to office-213
-  ✓ Forwarding localhost:2222
 ```
 
 ## Configuration
@@ -191,50 +176,14 @@ relay = "relay.bto.asia:9700"
   did = "office-215"
 ```
 
-## Build from Source
+## Documentation
 
-<details>
-<summary><strong>Requirements: C++20, CMake 3.20+, Boost, spdlog, fmt, protobuf</strong></summary>
+Full documentation is available at **[bto.asia](https://bto.asia)** or in the [docs/](docs/) directory:
 
-```bash
-# Build PeerLink first
-cd p2p-cpp
-cmake -B build -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=OFF
-cmake --build build -j$(nproc)
-
-# Build BTO
-cd ../back-to-office
-cmake -B build -DCMAKE_BUILD_TYPE=Release
-cmake --build build -j$(nproc)
-
-# Install
-sudo cp build/bto /usr/local/bin/
-```
-
-**Docker cross-compile (Linux x86_64 on macOS):**
-
-```bash
-docker run --rm --platform linux/amd64 \
-  -v "$PWD":/workspace -w /workspace \
-  ubuntu:22.04 bash -c '
-    apt-get update && apt-get install -y build-essential cmake \
-      libssl-dev libboost-all-dev libprotobuf-dev protobuf-compiler
-    cd p2p-cpp && cmake -B build -DCMAKE_BUILD_TYPE=Release && cmake --build build -j$(nproc)
-    cd .. && cmake -B build -DCMAKE_BUILD_TYPE=Release && cmake --build build -j$(nproc)
-  '
-```
-
-</details>
-
-## Project Stats
-
-| Metric | Value |
-|:--|:--|
-| Lines of Code | ~1,100 |
-| Test Count | 116 |
-| Test Coverage | 85.5% |
-| Binary Size | ~1 MB |
-| Dependencies | [PeerLink](https://github.com/hbliu007/peerlink) only |
+- [Architecture](docs/architecture.md) — System design and modules
+- [CLI Reference](docs/cli-reference.md) — All commands and options
+- [Config Reference](docs/config-reference.md) — Configuration file format
+- [Data Flow](docs/data-flow.md) — Session lifecycle and data flow
 
 ## Related
 
