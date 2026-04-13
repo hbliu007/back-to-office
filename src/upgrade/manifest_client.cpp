@@ -43,8 +43,8 @@ auto env_or_default(const char* key, const std::string& fallback) -> std::string
     return value ? std::string(value) : fallback;
 }
 
-constexpr const char* kDefaultManifestUrl = "http://47.99.216.25:8082/api/binaries/manifest";
-constexpr const char* kDefaultBinariesBaseUrl = "http://47.99.216.25:8082/api/binaries";
+constexpr const char* kDefaultManifestUrl = "https://downloads.bto.asia/api/binaries/manifest";
+constexpr const char* kDefaultBinariesBaseUrl = "https://downloads.bto.asia/api/binaries";
 
 auto is_https_url(const std::string& url) -> bool {
     return url.rfind("https://", 0) == 0;

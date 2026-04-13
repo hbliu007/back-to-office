@@ -1,0 +1,36 @@
+<svg width="1200" height="630" viewBox="0 0 1200 630" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg" x1="96" y1="72" x2="1104" y2="558" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#07111F"/>
+      <stop offset="1" stop-color="#12385A"/>
+    </linearGradient>
+    <linearGradient id="card" x1="150" y1="118" x2="1018" y2="484" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#0B1730" stop-opacity="0.94"/>
+      <stop offset="1" stop-color="#10213B" stop-opacity="0.82"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="1200" height="630" rx="36" fill="#06101D"/>
+  <rect x="24" y="24" width="1152" height="582" rx="28" fill="url(#bg)"/>
+  <circle cx="1037" cy="144" r="150" fill="#2EA043" fill-opacity="0.12"/>
+  <circle cx="189" cy="538" r="176" fill="#1F6FEB" fill-opacity="0.16"/>
+  <rect x="110" y="104" width="980" height="422" rx="28" fill="url(#card)" stroke="rgba(255,255,255,0.16)"/>
+
+  <text x="156" y="183" fill="#7EE787" font-family="'SFMono-Regular', Consolas, monospace" font-size="24">$ ssh into the office in one command</text>
+  <text x="156" y="263" fill="white" font-family="'Segoe UI', 'Helvetica Neue', Arial, sans-serif" font-size="74" font-weight="700">BTO</text>
+  <text x="156" y="315" fill="#C9D1D9" font-family="'Segoe UI', 'Helvetica Neue', Arial, sans-serif" font-size="34">Back To Office</text>
+  <text x="156" y="382" fill="#E6EDF3" font-family="'Segoe UI', 'Helvetica Neue', Arial, sans-serif" font-size="28">Remote SSH access to your office machine</text>
+  <text x="156" y="420" fill="#E6EDF3" font-family="'Segoe UI', 'Helvetica Neue', Arial, sans-serif" font-size="28">without VPN tickets or inbound port forwarding.</text>
+
+  <rect x="156" y="457" width="262" height="48" rx="24" fill="#2EA043"/>
+  <text x="187" y="489" fill="white" font-family="'Segoe UI', 'Helvetica Neue', Arial, sans-serif" font-size="22" font-weight="700">curl | bash and connect</text>
+
+  <rect x="666" y="180" width="340" height="206" rx="20" fill="#08101F" stroke="rgba(255,255,255,0.12)"/>
+  <circle cx="698" cy="209" r="7" fill="#F85149"/>
+  <circle cx="723" cy="209" r="7" fill="#F2CC60"/>
+  <circle cx="748" cy="209" r="7" fill="#2EA043"/>
+  <text x="691" y="255" fill="#7EE787" font-family="'SFMono-Regular', Consolas, monospace" font-size="21">$ curl -fsSL .../install.sh | bash</text>
+  <text x="691" y="292" fill="#8B949E" font-family="'SFMono-Regular', Consolas, monospace" font-size="19">installs: bto + peerlinkd</text>
+  <text x="691" y="329" fill="#8B949E" font-family="'SFMono-Regular', Consolas, monospace" font-size="19">verifies: checksums.sha256</text>
+  <text x="691" y="366" fill="#58A6FF" font-family="'SFMono-Regular', Consolas, monospace" font-size="21">$ bto office-213</text>
+</svg>

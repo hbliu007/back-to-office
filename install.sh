@@ -12,7 +12,7 @@ set -euo pipefail
 # ─── 配置 ────────────────────────────────────────────────────────
 
 REPO="hbliu007/back-to-office"
-BINARY="bto"
+BINARIES=("bto" "peerlinkd")
 DEFAULT_INSTALL_DIR="${HOME}/.local/bin"
 
 # ─── 颜色 ────────────────────────────────────────────────────────
@@ -209,17 +209,23 @@ main() {
 
     # 安装
     mkdir -p "$INSTALL_DIR"
-    if [[ -w "$INSTALL_DIR" ]]; then
-        cp "${tmpdir}/${BINARY}" "${INSTALL_DIR}/${BINARY}"
-        chmod +x "${INSTALL_DIR}/${BINARY}"
-    else
-        info "需要 sudo 权限写入 ${INSTALL_DIR}"
-        sudo cp "${tmpdir}/${BINARY}" "${INSTALL_DIR}/${BINARY}"
-        sudo chmod +x "${INSTALL_DIR}/${BINARY}"
-    fi
+    local binary
+    for binary in "${BINARIES[@]}"; do
+        if [[ ! -f "${tmpdir}/${binary}" ]]; then
+            fatal "安装包缺少 ${binary}，请检查发布内容: ${url}"
+        fi
+        if [[ -w "$INSTALL_DIR" ]]; then
+            cp "${tmpdir}/${binary}" "${INSTALL_DIR}/${binary}"
+            chmod +x "${INSTALL_DIR}/${binary}"
+        else
+            info "需要 sudo 权限写入 ${INSTALL_DIR}"
+            sudo cp "${tmpdir}/${binary}" "${INSTALL_DIR}/${binary}"
+            sudo chmod +x "${INSTALL_DIR}/${binary}"
+        fi
+    done
 
     # 验证
-    if "${INSTALL_DIR}/${BINARY}" --version &>/dev/null; then
+    if "${INSTALL_DIR}/bto" --version &>/dev/null; then
         ok "安装成功！"
     else
         warn "二进制已复制，但运行验证失败（可能缺少动态库）"
@@ -246,13 +252,13 @@ main() {
     printf "${BOLD}${GREEN}  快速开始${NC}\n"
     echo ""
     echo "  1. 添加远端设备:"
-    echo "     bto add office-213 --did office-213"
+    echo "     bto add office-213 --did office-213 --relay relay.example.com:9700"
     echo ""
     echo "  2. 连接:"
-    echo "     bto connect office-213"
+    echo "     bto office-213"
     echo ""
-    echo "  3. SSH 登录:"
-    echo "     ssh -p 2222 user@127.0.0.1"
+    echo "  3. 如需调试本地 agent:"
+    echo "     bto daemon status"
     echo ""
     echo "  更多帮助: bto help"
     echo ""

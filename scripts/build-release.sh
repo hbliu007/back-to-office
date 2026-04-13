@@ -71,7 +71,7 @@ build_native() {
     cmake --build build-release -j"$(getconf _NPROCESSORS_ONLN 2>/dev/null || echo 4)"
 
     local filename="bto-${VERSION}-${platform}.tar.gz"
-    tar -czf "${DIST_DIR}/${filename}" -C build-release bto
+    tar -czf "${DIST_DIR}/${filename}" -C build-release bto peerlinkd
 
     ok "构建完成: ${filename}"
     file build-release/bto
@@ -112,7 +112,7 @@ build_linux_docker() {
         "
 
     local filename="bto-${VERSION}-linux-${arch}.tar.gz"
-    tar -czf "${DIST_DIR}/${filename}" -C "${PROJECT_ROOT}/build-docker" bto
+    tar -czf "${DIST_DIR}/${filename}" -C "${PROJECT_ROOT}/build-docker" bto peerlinkd
 
     ok "Docker 构建完成: ${filename}"
 }

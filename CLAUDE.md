@@ -51,7 +51,7 @@ Mac (客户端)                    Linux (服务端)
 └──────┬───────┘              └────────┬─────────┘
        │                               │
        └───────→ Relay Server ←────────┘
-              (47.99.216.25:9700)
+              (relay.example.com:9700)
               
 数据流: SSH ← bto ← [framed] ← relay ← [framed] ← p2p-tunnel-server ← SSH
 ```
@@ -85,7 +85,7 @@ Mac (客户端)                    Linux (服务端)
 ```bash
 # 使用 p2p-tunnel-server (正确)
 p2p-tunnel-server office-215 127.0.0.1 22 \
-  --relay-server 47.99.216.25:9700 \
+  --relay-server relay.example.com:9700 \
   --relay-mode relay-only
 
 # 不要使用 relay-tunnel (错误)
@@ -106,7 +106,7 @@ bto 215
 `~/.bto/config.toml`:
 ```toml
 did = "bto-client"
-relay = "47.99.216.25:9700"
+relay = "relay.example.com:9700"
 
 [peers.office-213]
   did = "office-213"
@@ -139,7 +139,7 @@ relay = "47.99.216.25:9700"
 ## 编译与分发规则（严格遵守）
 
 ### 编译环境
-- **所有 Linux 二进制只能在阿里云 ECS (47.99.216.25) 编译**
+- **所有 Linux 二进制应在受控的发布构建机上编译**
 - 禁止在目标服务器 (213/215) 上直接编译
 - 阿里云源码路径: `/opt/peerlink/src/p2p-platform/p2p-cpp/`
 
@@ -193,7 +193,7 @@ systemctl --user status p2p-tunnel
 
 1. 检查服务端运行的是 `p2p-tunnel-server` 还是 `relay-tunnel`
 2. 检查 DID 是否有多个进程抢占（`ps aux | grep <did>`）
-3. 检查 relay server 是否可达（`nc -zv 47.99.216.25 9700`）
+3. 检查 relay server 是否可达（`nc -zv relay.example.com 9700`）
 4. 查看日志：`journalctl --user -u p2p-tunnel.service -f`
 
 ### relay-tunnel 用途

@@ -139,15 +139,11 @@ TEST(ManifestClient, RejectsUnsupportedSchemeWithoutOverride) {
     EXPECT_NE(error.find("unsupported manifest/artifact URL scheme"), std::string::npos);
 }
 
-TEST(ManifestClient, RejectsDefaultInsecureHttpWithoutOverride) {
-    EnvVarGuard allow_http("BTO_ALLOW_INSECURE_HTTP_UPGRADE");
-    unsetenv("BTO_ALLOW_INSECURE_HTTP_UPGRADE");
-
-    bto::upgrade::ManifestClient client(
-        "http://47.99.216.25:8082/api/binaries/manifest",
-        "http://47.99.216.25:8082/api/binaries");
-
-    std::string error;
-    EXPECT_FALSE(client.fetch_manifest(&error).has_value());
-    EXPECT_NE(error.find("refusing insecure HTTP download"), std::string::npos);
+TEST(ManifestClient, DefaultUrlsAreHttps) {
+    EXPECT_EQ(
+        bto::upgrade::default_manifest_url(),
+        "https://downloads.bto.asia/api/binaries/manifest");
+    EXPECT_EQ(
+        bto::upgrade::default_binaries_base_url(),
+        "https://downloads.bto.asia/api/binaries");
 }
