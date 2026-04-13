@@ -77,7 +77,7 @@ jobs:
         run: |
           VERSION=${GITHUB_REF_NAME}
           FILENAME="bto-${VERSION}-linux-${{ matrix.arch }}.tar.gz"
-          tar -czf "$FILENAME" -C build bto peerlinkd
+          tar -czf "$FILENAME" -C build bto
           echo "FILENAME=$FILENAME" >> "$GITHUB_ENV"
 
       - uses: actions/upload-artifact@v4
@@ -128,7 +128,7 @@ jobs:
         run: |
           VERSION=${GITHUB_REF_NAME}
           FILENAME="bto-${VERSION}-darwin-${{ matrix.arch }}.tar.gz"
-          tar -czf "$FILENAME" -C build bto peerlinkd
+          tar -czf "$FILENAME" -C build bto
           echo "FILENAME=$FILENAME" >> "$GITHUB_ENV"
 
       - uses: actions/upload-artifact@v4
@@ -167,8 +167,6 @@ jobs:
             ```bash
             curl -fsSL https://raw.githubusercontent.com/${{ github.repository }}/main/install.sh | bash
             ```
-
-            该安装器会安装 `bto` 与 `peerlinkd`，并在存在 `checksums.sha256` 时自动做 SHA256 校验。
 
             指定版本:
             ```bash
