@@ -134,7 +134,7 @@ If the public product surface and source surface are split into separate reposit
 If you are here to build, test, debug, or ship BTO:
 
 - Start with [docs/README.md](docs/README.md)
-- Release through [back-to-office/.github/workflows/release.yml](.github/workflows/release.yml)
+- Release through [scripts/build-release.sh](scripts/build-release.sh)
 - Use [SECURITY.md](SECURITY.md) as the pre-publish review checklist
 
 ## License
