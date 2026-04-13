@@ -19,6 +19,7 @@ struct CreateSessionRequest {
     std::string local_did;
     std::string relay_host;
     uint16_t relay_port = 9700;
+    std::string relay_token;
     std::optional<uint16_t> requested_port;
     std::string ssh_user;
     std::string ssh_key;

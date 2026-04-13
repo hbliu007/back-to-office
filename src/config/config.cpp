@@ -87,6 +87,7 @@ auto Config::load(const std::string& path) -> std::optional<Config> {
         if (current_peer.empty()) {
             if (key == "did" || key == "identity") config.did = value;
             else if (key == "relay") config.relay = value;
+            else if (key == "relay_token") config.relay_token = value;
         } else {
             if (key == "did") config.peers[current_peer].did = value;
             else if (key == "user") config.peers[current_peer].user = value;
@@ -110,6 +111,9 @@ auto Config::save(const std::string& path) const -> bool {
     file << "# BTO 配置文件\n";
     file << "did = \"" << did << "\"\n";
     file << "relay = \"" << relay << "\"\n";
+    if (!relay_token.empty()) {
+        file << "relay_token = \"" << relay_token << "\"\n";
+    }
 
     for (const auto& [name, peer] : peers) {
         file << "\n[peers." << name << "]\n";

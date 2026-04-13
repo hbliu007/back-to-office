@@ -179,7 +179,7 @@ private:
     StoppedCallback on_stopped_;
     SessionCountCallback on_session_count_changed_;
 
-    static constexpr std::size_t kMaxBufferedBytesPerChannel = 256 * 1024;
+    static constexpr std::size_t kMaxBufferedBytesPerChannel = 1024 * 1024;
 };
 
 }  // namespace bto

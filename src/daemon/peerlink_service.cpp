@@ -39,7 +39,8 @@ auto connection_state_name(ConnectionState state) -> std::string {
     return "unknown";
 }
 
-auto build_p2p_config(const std::string& relay_host, uint16_t relay_port)
+auto build_p2p_config(const std::string& relay_host, uint16_t relay_port,
+                      const std::string& relay_token = "")
     -> p2p::core::P2PConfig {
     p2p::core::P2PConfig cfg;
     cfg.stun_server = "";
@@ -51,6 +52,7 @@ auto build_p2p_config(const std::string& relay_host, uint16_t relay_port)
     cfg.tcp_relay_server = relay_host;
     cfg.tcp_relay_port = relay_port;
     cfg.relay_mode = p2p::core::RelayMode::RELAY_ONLY;
+    cfg.relay_auth_token = relay_token;
     return cfg;
 }
 
@@ -100,7 +102,7 @@ public:
             ioc_,
             request_.local_did,
             request_.target_did,
-            build_p2p_config(request_.relay_host, request_.relay_port),
+            build_p2p_config(request_.relay_host, request_.relay_port, request_.relay_token),
             local_port_);
         bridge_->set_ssh_hint(request_.ssh_user, request_.ssh_key);
         bridge_->set_trace_id(request_.trace_id);
@@ -258,7 +260,7 @@ private:
         }
 
         auto self = shared_from_this();
-        idle_timer_.expires_after(std::chrono::seconds(30));
+        idle_timer_.expires_after(std::chrono::seconds(300));
         idle_timer_.async_wait([self](const boost::system::error_code& ec) {
             if (ec) {
                 return;
@@ -433,6 +435,7 @@ void PeerlinkService::handle_create_session(const Json& request, ReplyFn reply) 
     create_request.local_did = request.value("local_did", "");
     create_request.relay_host = request.value("relay_host", "");
     create_request.relay_port = static_cast<uint16_t>(request.value("relay_port", 9700));
+    create_request.relay_token = request.value("relay_token", "");
     create_request.ssh_user = request.value("ssh_user", "");
     create_request.ssh_key = request.value("ssh_key", "");
     if (request.contains("requested_port") && !request["requested_port"].is_null()) {

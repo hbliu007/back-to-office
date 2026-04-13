@@ -24,6 +24,7 @@ struct PeerConfig {
 struct Config {
     std::string did;                            // 本机 DID
     std::string relay;                          // relay 地址 host:port
+    std::string relay_token;                    // relay AUTH token (可选)
     std::map<std::string, PeerConfig> peers;    // 已知对端
 
     [[nodiscard]] static auto load(const std::string& path) -> std::optional<Config>;

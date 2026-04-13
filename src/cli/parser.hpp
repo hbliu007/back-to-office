@@ -45,6 +45,7 @@ struct Command {
     std::string rollback_command; // --rollback-command (for upgrade)
     std::string health_command; // --health-command (for upgrade)
     std::string remote_ssh_host; // --remote-ssh-host (upgrade preflight)
+    std::string local_file;      // positional file path (for push)
     uint16_t listen_port = 2222;
     uint32_t timeout_seconds = 30;
     bool version = false;

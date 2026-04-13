@@ -110,7 +110,8 @@ auto peerlinkd_exec_path() -> std::string {
     return "peerlinkd";
 }
 
-auto build_p2p_config(const std::string& relay_host, uint16_t relay_port)
+auto build_p2p_config(const std::string& relay_host, uint16_t relay_port,
+                      const std::string& relay_token = "")
     -> p2p::core::P2PConfig {
     p2p::core::P2PConfig cfg;
     cfg.stun_server = "";
@@ -122,6 +123,7 @@ auto build_p2p_config(const std::string& relay_host, uint16_t relay_port)
     cfg.tcp_relay_server = relay_host;
     cfg.tcp_relay_port = relay_port;
     cfg.relay_mode = p2p::core::RelayMode::RELAY_ONLY;
+    cfg.relay_auth_token = relay_token;
     return cfg;
 }
 
@@ -475,6 +477,7 @@ auto try_connect_daemon(const bto::cli::Command& cmd, const bto::config::Config&
         {"local_did", local_did},
         {"relay_host", relay_host},
         {"relay_port", relay_port},
+        {"relay_token", config.relay_token},
         {"ssh_user", target.user},
         {"ssh_key", target.key},
     };
@@ -560,7 +563,7 @@ int cmd_connect_legacy(const bto::cli::Command& cmd, bto::config::Config& config
     }
 
     auto [relay_host, relay_port] = parse_relay(relay);
-    auto p2p_cfg = build_p2p_config(relay_host, relay_port);
+    auto p2p_cfg = build_p2p_config(relay_host, relay_port, config.relay_token);
 
     boost::asio::io_context ioc;
     g_ioc.store(&ioc, std::memory_order_release);
@@ -1195,6 +1198,7 @@ int cmd_upgrade(const bto::cli::Command& cmd, const bto::config::Config& config)
     request.target_did = target.did;
     request.relay_host = relay_host;
     request.relay_port = relay_port;
+    request.relay_token = config.relay_token;
     request.artifact = *it;
     request.artifact_path = download_path;
     request.live_binary = defaults.live_binary;
@@ -1213,6 +1217,86 @@ int cmd_upgrade(const bto::cli::Command& cmd, const bto::config::Config& config)
               << "  replaced=" << (result.replaced ? "true" : "false")
               << "  rolled_back=" << (result.rolled_back ? "true" : "false")
               << "\n";
+    return EC::OK;
+}
+
+int cmd_push(const bto::cli::Command& cmd, const bto::config::Config& config) {
+    if (cmd.target.empty()) {
+        std::cerr << "错误: 请指定目标设备\n"
+                  << "用法: bto push <peer> <local-file> [选项]\n";
+        return EC::USAGE;
+    }
+    if (cmd.local_file.empty()) {
+        std::cerr << "错误: 请指定本地文件路径\n"
+                  << "用法: bto push <peer> <local-file> [选项]\n";
+        return EC::USAGE;
+    }
+
+    const std::filesystem::path local_path(cmd.local_file);
+    if (!std::filesystem::is_regular_file(local_path)) {
+        std::cerr << "错误: 文件不存在: " << cmd.local_file << "\n";
+        return EC::CONFIG;
+    }
+
+    auto relay = cmd.relay.empty() ? config.relay : cmd.relay;
+    if (relay.empty()) {
+        std::cerr << "错误: 未指定 Relay 服务器\n";
+        return EC::CONFIG;
+    }
+
+    auto target = resolve_target(config, cmd.target);
+    auto local_did = cmd.did.empty() ? config.did : cmd.did;
+    if (local_did.empty()) {
+        local_did = "bto-client";
+    }
+
+    const auto file_size = std::filesystem::file_size(local_path);
+    const auto digest = p2p::core::compute_artifact_sha256(local_path);
+    if (!digest.has_value()) {
+        std::cerr << "错误: 计算文件 SHA256 失败\n";
+        return EC::CONFIG;
+    }
+
+    const auto artifact_name = local_path.filename().string();
+    std::cout << "push — 目标=" << target.did
+              << " 文件=" << artifact_name
+              << " 大小=" << file_size
+              << " sha256=" << *digest << "\n";
+
+    bto::upgrade::ArtifactManifestEntry artifact;
+    artifact.name = artifact_name;
+    artifact.size = file_size;
+    artifact.sha256 = *digest;
+
+    auto [relay_host, relay_port] = parse_relay(relay);
+
+    bto::upgrade::UpgradeRequest request;
+    request.local_did = local_did;
+    request.target_did = target.did;
+    request.relay_host = relay_host;
+    request.relay_port = relay_port;
+    request.relay_token = config.relay_token;
+    request.artifact = artifact;
+    request.artifact_path = local_path;
+    request.live_binary = cmd.live_binary.empty()
+        ? "/var/lib/peerlink-upgrades/push-placeholder"
+        : cmd.live_binary;
+    request.activate_command = cmd.activate_command;
+    request.rollback_command = cmd.rollback_command;
+    request.health_command = cmd.health_command;
+    request.timeout_seconds = cmd.timeout_seconds > 0 ? cmd.timeout_seconds : 60;
+
+    const auto result = bto::upgrade::run_remote_upgrade(request);
+    if (!result.success) {
+        std::cerr << "推送失败: " << result.error << "\n";
+        return EC::NETWORK;
+    }
+
+    std::cout << "推送成功: " << target.did
+              << "  文件=" << artifact_name << "\n";
+    if (!cmd.activate_command.empty()) {
+        std::cout << "  activate 已执行\n";
+    }
     return EC::OK;
 }
 
@@ -1238,6 +1322,7 @@ int main(int argc, char* argv[]) {
     if (cmd.name == "device")       return cmd_device(cmd);
     if (cmd.name == "connect")      return cmd_connect(cmd, runtime_config);
     if (cmd.name == "upgrade")      return cmd_upgrade(cmd, runtime_config);
+    if (cmd.name == "push")         return cmd_push(cmd, runtime_config);
     if (cmd.name == "list")         return cmd_list(config);
     if (cmd.name == "ps")           return cmd_ps();
     if (cmd.name == "close")        return cmd_close(cmd, runtime_config);

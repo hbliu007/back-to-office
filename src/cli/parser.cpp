@@ -69,6 +69,14 @@ auto parse_arguments(int argc, char* argv[]) -> Command {
             if (i + 1 < args.size() && !args[i+1].empty() && args[i+1][0] != '-')
                 cmd.target = args[++i];
         }
+        else if (arg == "push") {
+            cmd.name = "push";
+            // bto push <peer> <local-file>
+            if (i + 1 < args.size() && !args[i+1].empty() && args[i+1][0] != '-')
+                cmd.target = args[++i];
+            if (i + 1 < args.size() && !args[i+1].empty() && args[i+1][0] != '-')
+                cmd.local_file = args[++i];
+        }
         else if (arg == "list")   { cmd.name = "list"; }
         else if (arg == "ps")     { cmd.name = "ps"; }
         else if (arg == "close") {
@@ -195,6 +203,7 @@ void help_overview() {
         "  bto device remove <name>     移除托管设备记录\n"
         "  bto connect <name>           连接远端（当前默认仍用 ~/.bto/config.toml；托管授权接入后同命令）\n"
         "  bto upgrade [<name>]         升级（当前行为见 bto help upgrade；托管授权将后续接入）\n"
+        "  bto push <name> <file>       推送任意本地文件到远端并执行命令（见 bto help push）\n"
         "\n"
         "本会话管理:\n"
         "  bto list                     列出本地 config 中的设备（兼容）\n"
@@ -335,6 +344,36 @@ void help_upgrade() {
         "  --relay <host:port>        Relay 覆盖\n";
 }
 
+void help_push() {
+    std::cout <<
+        "bto push — 通过 P2P 推送任意本地文件到远端并执行命令\n"
+        "\n"
+        "用法:\n"
+        "  bto push <peer> <local-file> [选项]\n"
+        "\n"
+        "说明:\n"
+        "  跳过 manifest 流程，直接将本地文件通过 PeerLink P2P 传输到远端，\n"
+        "  然后执行指定的激活命令。适用于推送任意制品（npm 包、脚本等）。\n"
+        "\n"
+        "选项:\n"
+        "  --activate-command <cmd>   传输完成后在远端执行的安装命令\n"
+        "  --health-command <cmd>     健康检查命令\n"
+        "  --rollback-command <cmd>   回滚命令\n"
+        "  --timeout-seconds <n>      命令超时秒数（默认 60）\n"
+        "  --did <did>                本机 DID 覆盖\n"
+        "  --relay <host:port>        Relay 覆盖\n"
+        "\n"
+        "示例:\n"
+        "  # 推送 Claude Code npm 包到远端并安装\n"
+        "  bto push office-213 ./claude-code-2.1.104.tgz \\\n"
+        "    --activate-command 'npm install -g /var/lib/peerlink-upgrades/*/claude-code-2.1.104.tgz' \\\n"
+        "    --health-command 'claude --version'\n"
+        "\n"
+        "  # 推送任意脚本\n"
+        "  bto push office-215 ./deploy.sh \\\n"
+        "    --activate-command 'chmod +x /var/lib/peerlink-upgrades/*/deploy.sh && /var/lib/peerlink-upgrades/*/deploy.sh'\n";
+}
+
 void help_add() {
     std::cout <<
         "bto add — 添加设备\n"
@@ -439,6 +478,7 @@ void show_help(const std::string& topic) {
     else if (topic == "connect")  help_connect();
     else if (topic == "add")      help_add();
     else if (topic == "upgrade")  help_upgrade();
+    else if (topic == "push")     help_push();
     else if (topic == "remove")   help_remove();
     else if (topic == "config")   help_config();
     else if (topic == "close")    help_close();

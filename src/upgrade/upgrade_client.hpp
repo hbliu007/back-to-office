@@ -13,6 +13,7 @@ struct UpgradeRequest {
     std::string target_did;
     std::string relay_host;
     uint16_t relay_port = 9700;
+    std::string relay_token;
     ArtifactManifestEntry artifact;
     std::filesystem::path artifact_path;
     std::string live_binary;

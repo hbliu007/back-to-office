@@ -726,6 +726,10 @@ void ConnectBridge::send_to_p2p(int channel_id, const std::vector<uint8_t>& data
 }
 
 void ConnectBridge::on_p2p_data(int channel_id, const std::vector<uint8_t>& data) {
+    // Ignore relay keepalive frames (channel_id=-1, empty payload)
+    if (channel_id < 0) {
+        return;
+    }
     spdlog::debug("[bto] P2P 收到数据 channel={} size={}", channel_id, data.size());
 
     std::shared_ptr<TunnelSession> session;

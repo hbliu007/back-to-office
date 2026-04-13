@@ -124,6 +124,7 @@ auto run_remote_upgrade(const UpgradeRequest& request) -> UpgradeResult {
     cfg.tcp_relay_server = request.relay_host;
     cfg.tcp_relay_port = request.relay_port;
     cfg.relay_mode = p2p::core::RelayMode::RELAY_ONLY;
+    cfg.relay_auth_token = request.relay_token;
 
     bto::util::IoContextThread io_runner;
     auto& io_context = io_runner.context();
