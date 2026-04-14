@@ -5,7 +5,7 @@
 <h1 align="center">BTO (Back To Office)</h1>
 
 <p align="center">
-  <strong>Leave the office. Keep working on the same machine.</strong>
+  <strong>Leave the office. Keep working on the same machine, with the same coding flow.</strong>
 </p>
 
 <p align="center">
@@ -39,11 +39,11 @@
 
 You leave the office.
 
-Your code is still on the office machine. Your GPU is there. Your data is there. Your terminal session is there. Maybe your real goal is just this:
+Your code is still on the office machine. Your GPU is there. Your data is there. Your terminal session is there. Sometimes even your AI coding workflow is already open there. Maybe your real goal is just this:
 
 - reopen that machine from home
 - continue the same debugging session
-- keep Claude Code, Codex, or plain SSH work moving
+- keep Claude Code, Codex, or plain SSH work moving on the same box
 - avoid asking IT for VPN access or touching router / firewall settings
 
 That is the emotional job BTO is built for.

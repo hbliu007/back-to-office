@@ -1,36 +1,55 @@
-<svg width="1200" height="630" viewBox="0 0 1200 630" fill="none" xmlns="http://www.w3.org/2000/svg">
+<svg width="1200" height="680" viewBox="0 0 1200 680" fill="none" xmlns="http://www.w3.org/2000/svg">
   <defs>
-    <linearGradient id="bg" x1="96" y1="72" x2="1104" y2="558" gradientUnits="userSpaceOnUse">
-      <stop stop-color="#07111F"/>
-      <stop offset="1" stop-color="#12385A"/>
+    <linearGradient id="bg" x1="58" y1="44" x2="1130" y2="628" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#091827"/>
+      <stop offset="1" stop-color="#153D63"/>
     </linearGradient>
-    <linearGradient id="card" x1="150" y1="118" x2="1018" y2="484" gradientUnits="userSpaceOnUse">
-      <stop stop-color="#0B1730" stop-opacity="0.94"/>
-      <stop offset="1" stop-color="#10213B" stop-opacity="0.82"/>
+    <linearGradient id="screen" x1="118" y1="178" x2="530" y2="454" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#101B2A"/>
+      <stop offset="1" stop-color="#0A1420"/>
+    </linearGradient>
+    <linearGradient id="screen2" x1="670" y1="178" x2="1082" y2="454" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#101B2A"/>
+      <stop offset="1" stop-color="#0A1420"/>
     </linearGradient>
   </defs>
 
-  <rect width="1200" height="630" rx="36" fill="#06101D"/>
-  <rect x="24" y="24" width="1152" height="582" rx="28" fill="url(#bg)"/>
-  <circle cx="1037" cy="144" r="150" fill="#2EA043" fill-opacity="0.12"/>
-  <circle cx="189" cy="538" r="176" fill="#1F6FEB" fill-opacity="0.16"/>
-  <rect x="110" y="104" width="980" height="422" rx="28" fill="url(#card)" stroke="rgba(255,255,255,0.16)"/>
+  <rect width="1200" height="680" rx="32" fill="#06101C"/>
+  <rect x="22" y="22" width="1156" height="636" rx="28" fill="url(#bg)"/>
 
-  <text x="156" y="183" fill="#7EE787" font-family="'SFMono-Regular', Consolas, monospace" font-size="24">$ ssh into the office in one command</text>
-  <text x="156" y="263" fill="white" font-family="'Segoe UI', 'Helvetica Neue', Arial, sans-serif" font-size="74" font-weight="700">BTO</text>
-  <text x="156" y="315" fill="#C9D1D9" font-family="'Segoe UI', 'Helvetica Neue', Arial, sans-serif" font-size="34">Back To Office</text>
-  <text x="156" y="382" fill="#E6EDF3" font-family="'Segoe UI', 'Helvetica Neue', Arial, sans-serif" font-size="28">Remote SSH access to your office machine</text>
-  <text x="156" y="420" fill="#E6EDF3" font-family="'Segoe UI', 'Helvetica Neue', Arial, sans-serif" font-size="28">without VPN tickets or inbound port forwarding.</text>
+  <text x="78" y="86" fill="#7EE787" font-family="'SFMono-Regular', Consolas, monospace" font-size="22">$ leave the office, keep the same workflow</text>
+  <text x="78" y="138" fill="white" font-family="'Segoe UI', Arial, sans-serif" font-size="54" font-weight="700">Reconnect to the office machine</text>
+  <text x="78" y="186" fill="#DCE7F3" font-family="'Segoe UI', Arial, sans-serif" font-size="30">and continue the same Claude Code session from somewhere else.</text>
 
-  <rect x="156" y="457" width="262" height="48" rx="24" fill="#2EA043"/>
-  <text x="187" y="489" fill="white" font-family="'Segoe UI', 'Helvetica Neue', Arial, sans-serif" font-size="22" font-weight="700">curl | bash and connect</text>
+  <rect x="78" y="232" width="438" height="290" rx="24" fill="url(#screen)" stroke="rgba(255,255,255,0.12)"/>
+  <rect x="684" y="232" width="438" height="290" rx="24" fill="url(#screen2)" stroke="rgba(255,255,255,0.12)"/>
 
-  <rect x="666" y="180" width="340" height="206" rx="20" fill="#08101F" stroke="rgba(255,255,255,0.12)"/>
-  <circle cx="698" cy="209" r="7" fill="#F85149"/>
-  <circle cx="723" cy="209" r="7" fill="#F2CC60"/>
-  <circle cx="748" cy="209" r="7" fill="#2EA043"/>
-  <text x="691" y="255" fill="#7EE787" font-family="'SFMono-Regular', Consolas, monospace" font-size="21">$ curl -fsSL .../install.sh | bash</text>
-  <text x="691" y="292" fill="#8B949E" font-family="'SFMono-Regular', Consolas, monospace" font-size="19">installs: bto + peerlinkd</text>
-  <text x="691" y="329" fill="#8B949E" font-family="'SFMono-Regular', Consolas, monospace" font-size="19">verifies: checksums.sha256</text>
-  <text x="691" y="366" fill="#58A6FF" font-family="'SFMono-Regular', Consolas, monospace" font-size="21">$ bto office-213</text>
+  <circle cx="112" cy="264" r="7" fill="#F85149"/>
+  <circle cx="136" cy="264" r="7" fill="#F2CC60"/>
+  <circle cx="160" cy="264" r="7" fill="#2EA043"/>
+  <circle cx="718" cy="264" r="7" fill="#F85149"/>
+  <circle cx="742" cy="264" r="7" fill="#F2CC60"/>
+  <circle cx="766" cy="264" r="7" fill="#2EA043"/>
+
+  <text x="110" y="307" fill="#8B949E" font-family="'SFMono-Regular', Consolas, monospace" font-size="18">HOME LAPTOP</text>
+  <text x="716" y="307" fill="#8B949E" font-family="'SFMono-Regular', Consolas, monospace" font-size="18">OFFICE MACHINE</text>
+
+  <text x="110" y="352" fill="#F0F6FC" font-family="'Segoe UI', Arial, sans-serif" font-size="26" font-weight="700">Claude Code</text>
+  <text x="716" y="352" fill="#F0F6FC" font-family="'Segoe UI', Arial, sans-serif" font-size="26" font-weight="700">Claude Code</text>
+
+  <text x="110" y="390" fill="#7EE787" font-family="'SFMono-Regular', Consolas, monospace" font-size="19">$ claude</text>
+  <text x="716" y="390" fill="#7EE787" font-family="'SFMono-Regular', Consolas, monospace" font-size="19">$ claude</text>
+
+  <text x="110" y="426" fill="#DCE7F3" font-family="'SFMono-Regular', Consolas, monospace" font-size="18">Continue fixing the production issue</text>
+  <text x="716" y="426" fill="#DCE7F3" font-family="'SFMono-Regular', Consolas, monospace" font-size="18">Repository, logs, GPU, and context are ready</text>
+
+  <rect x="520" y="326" width="158" height="94" rx="20" fill="#2EA043"/>
+  <text x="541" y="362" fill="white" font-family="'SFMono-Regular', Consolas, monospace" font-size="18" font-weight="700">$ bto</text>
+  <text x="541" y="392" fill="white" font-family="'SFMono-Regular', Consolas, monospace" font-size="22" font-weight="700">office-213</text>
+
+  <path d="M496 374C468 374 454 374 444 374" stroke="#58A6FF" stroke-width="6" stroke-linecap="round"/>
+  <path d="M754 374C734 374 714 374 700 374" stroke="#58A6FF" stroke-width="6" stroke-linecap="round"/>
+
+  <rect x="78" y="558" width="1044" height="62" rx="22" fill="rgba(9,18,31,0.75)" stroke="rgba(255,255,255,0.10)"/>
+  <text x="106" y="598" fill="#C9D1D9" font-family="'Segoe UI', Arial, sans-serif" font-size="24">BTO is not about generic remote access. It is about getting back to your office computer and continuing the exact work session you had before you left.</text>
 </svg>
