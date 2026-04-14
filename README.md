@@ -20,7 +20,7 @@
   <img src="https://img.shields.io/badge/license-MIT-f2cc60?style=flat-square" alt="MIT license">
 </p>
 
-<p align="center"><a href="#install-in-30-seconds"><strong>Install Now</strong></a> · <a href="https://github.com/hbliu007/back-to-office/releases/latest">Downloads</a> · <a href="SECURITY.md">Security</a></p>
+<p align="center"><a href="#install-in-30-seconds"><strong>Install Now</strong></a> · <a href="https://bto.asia/register"><strong>Create Account</strong></a> · <a href="https://bto.asia/dashboard">Dashboard</a> · <a href="SECURITY.md">Security</a></p>
 
 > This GitHub repository is intentionally product-only. It is the public install surface for BTO, not the full development codebase.
 
@@ -28,7 +28,7 @@
 
 BTO is a CLI for one very specific job:
 
-**remote SSH access to your office computer so you can continue the same work session from somewhere else.**
+**remote SSH access to your office computer through the official BTO service, so you can continue the same work session from somewhere else.**
 
 If your code, logs, GPU, dataset, or AI coding workflow live on the office machine, BTO is the tool that gets you back onto that machine quickly.
 
@@ -38,6 +38,7 @@ If your code, logs, GPU, dataset, or AI coding workflow live on the office machi
 - You reopen the same repository and keep the same debugging momentum
 - You keep Claude Code, Codex, or plain terminal work moving
 - You avoid turning this into a whole VPN project
+- You use the official BTO account and device flow instead of manual network setup
 
 ## Install in 30 Seconds
 
@@ -54,10 +55,19 @@ This installer is designed to match the latest GitHub Release assets.
 
 As of **April 14, 2026**, I verified that the latest public release page exposes macOS ARM64 and Linux AMD64 assets, and updated the installer to match the current asset naming and checksum naming used there.
 
+## Official Service Flow
+
+1. Install BTO from this repository
+2. Create your account at [bto.asia/register](https://bto.asia/register)
+3. Open your console at [bto.asia/dashboard](https://bto.asia/dashboard)
+4. Get your token / device setup from the official BTO service
+5. Connect back to your office machine and continue working
+
 ## Before You Install
 
 - GitHub distributes the binary, but **GitHub does not issue user tokens**
-- If your relay or hosted control plane requires a token, get it from your **official BTO control plane / website / self-hosted admin**, not from this repository
+- User accounts, tokens, and device onboarding belong to the official BTO service:
+  [bto.asia/register](https://bto.asia/register) and [bto.asia/dashboard](https://bto.asia/dashboard)
 - Basic installation should never require putting your personal token into a public GitHub command
 
 ## Why This Hits Home
@@ -100,13 +110,21 @@ Not "networking infrastructure". Not "a full platform". Just getting you back on
 $ curl -fsSL https://raw.githubusercontent.com/hbliu007/back-to-office/main/install.sh | bash
 ```
 
-### 2. Add your office machine once
+### 2. Create your account and open your dashboard
 
 ```console
-$ bto add office-213 --did office-213 --relay relay.example.com:9700
+$ open https://bto.asia/register
+$ open https://bto.asia/dashboard
 ```
 
-### 3. Connect like it is on your desk
+### 3. Follow the official onboarding flow
+
+- sign in
+- get your token
+- register or open your office device
+- finish the setup shown in the dashboard
+
+### 4. Connect like it is on your desk
 
 ```console
 $ bto office-213
@@ -114,7 +132,7 @@ $ bto office-213
 
 What happens next:
 
-- BTO resolves the target name or DID
+- BTO uses your configured official BTO account / device context
 - `peerlinkd` starts if needed
 - BTO reuses the local bridge and launches SSH for you
 
@@ -151,7 +169,7 @@ That is why this repository now leads with a visual story and a single install c
 - The canonical install path is GitHub Releases plus `install.sh`, not a private IP or ad-hoc file share.
 - The installer only fetches release assets and validates SHA256 checksums when available.
 - Basic installation does not require embedding tokens in `curl | sh` commands.
-- Tokens, when required by your relay setup, should come from your official BTO control plane or self-hosted admin, not from GitHub.
+- Tokens should come from the official BTO service, not from GitHub.
 - The relay is part of the transport path in relay mode, so this repo avoids absolute claims that are hard to verify for every deployment.
 - Before production rollout, read [SECURITY.md](SECURITY.md) and review your own relay, logging, and credential policy.
 
