@@ -1,55 +1,64 @@
-<svg width="1200" height="680" viewBox="0 0 1200 680" fill="none" xmlns="http://www.w3.org/2000/svg">
-  <defs>
-    <linearGradient id="bg" x1="58" y1="44" x2="1130" y2="628" gradientUnits="userSpaceOnUse">
-      <stop stop-color="#091827"/>
-      <stop offset="1" stop-color="#153D63"/>
-    </linearGradient>
-    <linearGradient id="screen" x1="118" y1="178" x2="530" y2="454" gradientUnits="userSpaceOnUse">
-      <stop stop-color="#101B2A"/>
-      <stop offset="1" stop-color="#0A1420"/>
-    </linearGradient>
-    <linearGradient id="screen2" x1="670" y1="178" x2="1082" y2="454" gradientUnits="userSpaceOnUse">
-      <stop stop-color="#101B2A"/>
-      <stop offset="1" stop-color="#0A1420"/>
-    </linearGradient>
-  </defs>
+<svg width="1200" height="760" viewBox="0 0 1200 760" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="1200" height="760" rx="30" fill="#050607"/>
+  <rect x="20" y="20" width="1160" height="720" rx="24" fill="#060708" stroke="#1A1D21"/>
 
-  <rect width="1200" height="680" rx="32" fill="#06101C"/>
-  <rect x="22" y="22" width="1156" height="636" rx="28" fill="url(#bg)"/>
+  <text x="38" y="64" fill="#E6EDF3" font-family="'SFMono-Regular', Consolas, monospace" font-size="22">(base) liuhongbo@home-macbook ~ % claude</text>
+  <text x="744" y="64" fill="#E6EDF3" font-family="'SFMono-Regular', Consolas, monospace" font-size="22">(base) office@office-213 ~ % claude</text>
 
-  <text x="78" y="86" fill="#7EE787" font-family="'SFMono-Regular', Consolas, monospace" font-size="22">$ leave the office, keep the same workflow</text>
-  <text x="78" y="138" fill="white" font-family="'Segoe UI', Arial, sans-serif" font-size="54" font-weight="700">Reconnect to the office machine</text>
-  <text x="78" y="186" fill="#DCE7F3" font-family="'Segoe UI', Arial, sans-serif" font-size="30">and continue the same Claude Code session from somewhere else.</text>
+  <rect x="36" y="100" width="324" height="232" rx="18" fill="#040506" stroke="#17191C"/>
+  <rect x="840" y="100" width="324" height="232" rx="18" fill="#040506" stroke="#17191C"/>
 
-  <rect x="78" y="232" width="438" height="290" rx="24" fill="url(#screen)" stroke="rgba(255,255,255,0.12)"/>
-  <rect x="684" y="232" width="438" height="290" rx="24" fill="url(#screen2)" stroke="rgba(255,255,255,0.12)"/>
+  <rect x="70" y="128" width="18" height="18" fill="#E58863"/>
+  <rect x="88" y="128" width="18" height="18" fill="#E58863"/>
+  <rect x="106" y="128" width="18" height="18" fill="#E58863"/>
+  <rect x="124" y="128" width="18" height="18" fill="#E58863"/>
+  <rect x="70" y="146" width="18" height="18" fill="#E58863"/>
+  <rect x="124" y="146" width="18" height="18" fill="#E58863"/>
+  <rect x="88" y="182" width="18" height="18" fill="#E58863"/>
+  <rect x="106" y="182" width="18" height="18" fill="#E58863"/>
 
-  <circle cx="112" cy="264" r="7" fill="#F85149"/>
-  <circle cx="136" cy="264" r="7" fill="#F2CC60"/>
-  <circle cx="160" cy="264" r="7" fill="#2EA043"/>
-  <circle cx="718" cy="264" r="7" fill="#F85149"/>
-  <circle cx="742" cy="264" r="7" fill="#F2CC60"/>
-  <circle cx="766" cy="264" r="7" fill="#2EA043"/>
+  <rect x="874" y="128" width="18" height="18" fill="#E58863"/>
+  <rect x="892" y="128" width="18" height="18" fill="#E58863"/>
+  <rect x="910" y="128" width="18" height="18" fill="#E58863"/>
+  <rect x="928" y="128" width="18" height="18" fill="#E58863"/>
+  <rect x="874" y="146" width="18" height="18" fill="#E58863"/>
+  <rect x="928" y="146" width="18" height="18" fill="#E58863"/>
+  <rect x="892" y="182" width="18" height="18" fill="#E58863"/>
+  <rect x="910" y="182" width="18" height="18" fill="#E58863"/>
 
-  <text x="110" y="307" fill="#8B949E" font-family="'SFMono-Regular', Consolas, monospace" font-size="18">HOME LAPTOP</text>
-  <text x="716" y="307" fill="#8B949E" font-family="'SFMono-Regular', Consolas, monospace" font-size="18">OFFICE MACHINE</text>
+  <text x="176" y="150" fill="#F5F7FA" font-family="'Segoe UI', Arial, sans-serif" font-size="28" font-weight="700">Claude Code v2.1.105</text>
+  <text x="176" y="185" fill="#8B949E" font-family="'Segoe UI', Arial, sans-serif" font-size="20">Opus 4.6  ·  API Usage Billing</text>
+  <text x="176" y="220" fill="#8B949E" font-family="'SFMono-Regular', Consolas, monospace" font-size="18">/Users/liuhongbo/workspace/project</text>
 
-  <text x="110" y="352" fill="#F0F6FC" font-family="'Segoe UI', Arial, sans-serif" font-size="26" font-weight="700">Claude Code</text>
-  <text x="716" y="352" fill="#F0F6FC" font-family="'Segoe UI', Arial, sans-serif" font-size="26" font-weight="700">Claude Code</text>
+  <text x="980" y="150" fill="#F5F7FA" font-family="'Segoe UI', Arial, sans-serif" font-size="28" font-weight="700">Claude Code v2.1.105</text>
+  <text x="980" y="185" fill="#8B949E" font-family="'Segoe UI', Arial, sans-serif" font-size="20">Opus 4.6  ·  API Usage Billing</text>
+  <text x="980" y="220" fill="#8B949E" font-family="'SFMono-Regular', Consolas, monospace" font-size="18">/srv/work/project</text>
 
-  <text x="110" y="390" fill="#7EE787" font-family="'SFMono-Regular', Consolas, monospace" font-size="19">$ claude</text>
-  <text x="716" y="390" fill="#7EE787" font-family="'SFMono-Regular', Consolas, monospace" font-size="19">$ claude</text>
+  <line x1="58" y1="262" x2="330" y2="262" stroke="#C7CDD6" stroke-width="2"/>
+  <line x1="862" y1="262" x2="1134" y2="262" stroke="#C7CDD6" stroke-width="2"/>
+  <text x="62" y="304" fill="#F5F7FA" font-family="'SFMono-Regular', Consolas, monospace" font-size="28">❯</text>
+  <rect x="92" y="277" width="18" height="38" fill="#F2F5F8"/>
+  <text x="866" y="304" fill="#F5F7FA" font-family="'SFMono-Regular', Consolas, monospace" font-size="28">❯</text>
+  <rect x="896" y="277" width="18" height="38" fill="#F2F5F8"/>
 
-  <text x="110" y="426" fill="#DCE7F3" font-family="'SFMono-Regular', Consolas, monospace" font-size="18">Continue fixing the production issue</text>
-  <text x="716" y="426" fill="#DCE7F3" font-family="'SFMono-Regular', Consolas, monospace" font-size="18">Repository, logs, GPU, and context are ready</text>
+  <line x1="58" y1="348" x2="330" y2="348" stroke="#C7CDD6" stroke-width="2"/>
+  <line x1="862" y1="348" x2="1134" y2="348" stroke="#C7CDD6" stroke-width="2"/>
+  <text x="62" y="390" fill="#F4C534" font-family="'SFMono-Regular', Consolas, monospace" font-size="20">▸▸ auto mode on</text>
+  <text x="250" y="390" fill="#8B949E" font-family="'SFMono-Regular', Consolas, monospace" font-size="19">(shift+tab to cycle)</text>
+  <text x="866" y="390" fill="#F4C534" font-family="'SFMono-Regular', Consolas, monospace" font-size="20">▸▸ auto mode on</text>
+  <text x="1054" y="390" fill="#8B949E" font-family="'SFMono-Regular', Consolas, monospace" font-size="19">(shift+tab)</text>
 
-  <rect x="520" y="326" width="158" height="94" rx="20" fill="#2EA043"/>
-  <text x="541" y="362" fill="white" font-family="'SFMono-Regular', Consolas, monospace" font-size="18" font-weight="700">$ bto</text>
-  <text x="541" y="392" fill="white" font-family="'SFMono-Regular', Consolas, monospace" font-size="22" font-weight="700">office-213</text>
+  <rect x="458" y="260" width="284" height="122" rx="24" fill="#2EA043"/>
+  <text x="504" y="310" fill="#FFFFFF" font-family="'SFMono-Regular', Consolas, monospace" font-size="26" font-weight="700">$ bto office-213</text>
+  <text x="505" y="346" fill="#E8F5EC" font-family="'Segoe UI', Arial, sans-serif" font-size="20">Reconnect and continue the same work.</text>
 
-  <path d="M496 374C468 374 454 374 444 374" stroke="#58A6FF" stroke-width="6" stroke-linecap="round"/>
-  <path d="M754 374C734 374 714 374 700 374" stroke="#58A6FF" stroke-width="6" stroke-linecap="round"/>
+  <path d="M368 320C398 320 422 320 442 320" stroke="#58A6FF" stroke-width="7" stroke-linecap="round"/>
+  <path d="M758 320C782 320 804 320 832 320" stroke="#58A6FF" stroke-width="7" stroke-linecap="round"/>
 
-  <rect x="78" y="558" width="1044" height="62" rx="22" fill="rgba(9,18,31,0.75)" stroke="rgba(255,255,255,0.10)"/>
-  <text x="106" y="598" fill="#C9D1D9" font-family="'Segoe UI', Arial, sans-serif" font-size="24">BTO is not about generic remote access. It is about getting back to your office computer and continuing the exact work session you had before you left.</text>
+  <text x="78" y="482" fill="#FFFFFF" font-family="'Segoe UI', Arial, sans-serif" font-size="42" font-weight="700">This is what BTO is for.</text>
+  <text x="78" y="532" fill="#DCE7F3" font-family="'Segoe UI', Arial, sans-serif" font-size="28">You leave the office, but your real coding session is still on the office machine.</text>
+  <text x="78" y="570" fill="#DCE7F3" font-family="'Segoe UI', Arial, sans-serif" font-size="28">BTO gets you back onto that machine so Claude Code, terminals, logs, and momentum continue.</text>
+
+  <rect x="78" y="620" width="1044" height="76" rx="22" fill="#0A0E13" stroke="#1B2128"/>
+  <text x="112" y="668" fill="#7EE787" font-family="'SFMono-Regular', Consolas, monospace" font-size="24">$ curl -fsSL https://raw.githubusercontent.com/hbliu007/back-to-office/main/install.sh | bash</text>
 </svg>
