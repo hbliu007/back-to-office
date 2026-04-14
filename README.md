@@ -5,7 +5,7 @@
 <h1 align="center">BTO (Back To Office)</h1>
 
 <p align="center">
-  <strong>Remote SSH access to your office machine, without VPN tickets or inbound port forwarding.</strong>
+  <strong>Leave the office. Keep working on the same machine.</strong>
 </p>
 
 <p align="center">
@@ -23,12 +23,32 @@
 <p align="center">
   <a href="#install-in-30-seconds">Install</a> ·
   <a href="https://github.com/hbliu007/back-to-office/releases/latest">Downloads</a> ·
+  <a href="#why-this-hits-home">Why It Hits Home</a> ·
   <a href="#your-first-connection">First Connection</a> ·
   <a href="#trust-and-safety">Trust &amp; Safety</a> ·
   <a href="SECURITY.md">Security</a>
 </p>
 
 > This GitHub repository is intentionally product-only. It is the public install surface for BTO, not the full development codebase.
+
+## Why This Hits Home
+
+<p align="center">
+  <img src="assets/storyboard.svg" alt="BTO story from office to remote coding" width="100%">
+</p>
+
+You leave the office.
+
+Your code is still on the office machine. Your GPU is there. Your data is there. Your terminal session is there. Maybe your real goal is just this:
+
+- reopen that machine from home
+- continue the same debugging session
+- keep Claude Code, Codex, or plain SSH work moving
+- avoid asking IT for VPN access or touching router / firewall settings
+
+That is the emotional job BTO is built for.
+
+Not "networking infrastructure". Not "a full platform". Just getting you back onto your office computer so work continues.
 
 ## What BTO Is
 
@@ -84,6 +104,12 @@ What happens next:
 - `peerlinkd` starts if needed
 - BTO reuses the local bridge and launches SSH for you
 
+If your mental model is "I want to get back into the office box and keep coding", you're using BTO the right way.
+
+## The One-Line Pitch
+
+BTO is for the moment when you close your office door, open your laptop somewhere else, and want the same office machine back under your fingertips in one command.
+
 ## Why People Choose BTO
 
 | Decision point | BTO | FRP | Tailscale | Traditional VPN |
@@ -95,6 +121,16 @@ What happens next:
 | Installs in one command | `Yes` | `Partial` | `Yes` | `Rarely` |
 
 BTO wins when you want the smallest thing that gets you back into your office machine fast.
+
+## Why The Story Matters More Than Specs
+
+The best developer tools on GitHub tend to do three things above the fold:
+
+- show a real screenshot or visual scene
+- explain the job in one sentence
+- give you one install path immediately
+
+That is why this repository now leads with a visual story and a single install command instead of engineering structure. People do not fall in love with `src/` trees. They fall in love with the feeling of "yes, this solves my exact problem".
 
 ## Trust and Safety
 

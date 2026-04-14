@@ -1,0 +1,46 @@
+<svg width="1200" height="720" viewBox="0 0 1200 720" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg" x1="68" y1="60" x2="1124" y2="650" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#071A2D"/>
+      <stop offset="1" stop-color="#12395F"/>
+    </linearGradient>
+    <linearGradient id="card" x1="100" y1="112" x2="1110" y2="558" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#091625"/>
+      <stop offset="1" stop-color="#102337"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="1200" height="720" rx="32" fill="#05101C"/>
+  <rect x="22" y="22" width="1156" height="676" rx="28" fill="url(#bg)"/>
+
+  <text x="88" y="92" fill="#7EE787" font-family="'SFMono-Regular', Consolas, monospace" font-size="22">$ the real reason to install BTO</text>
+  <text x="88" y="140" fill="white" font-family="'Segoe UI', Arial, sans-serif" font-size="44" font-weight="700">Not remote access for its own sake.</text>
+  <text x="88" y="184" fill="#DCE7F3" font-family="'Segoe UI', Arial, sans-serif" font-size="30">It is about getting back to the office machine and continuing the work.</text>
+
+  <rect x="78" y="232" width="324" height="380" rx="24" fill="url(#card)" stroke="rgba(255,255,255,0.12)"/>
+  <rect x="438" y="232" width="324" height="380" rx="24" fill="url(#card)" stroke="rgba(255,255,255,0.12)"/>
+  <rect x="798" y="232" width="324" height="380" rx="24" fill="url(#card)" stroke="rgba(255,255,255,0.12)"/>
+
+  <text x="104" y="276" fill="#58A6FF" font-family="'SFMono-Regular', Consolas, monospace" font-size="18">01</text>
+  <text x="104" y="318" fill="white" font-family="'Segoe UI', Arial, sans-serif" font-size="32" font-weight="700">You leave the office</text>
+  <text x="104" y="360" fill="#C9D1D9" font-family="'Segoe UI', Arial, sans-serif" font-size="22">The code, GPU, and data are all</text>
+  <text x="104" y="390" fill="#C9D1D9" font-family="'Segoe UI', Arial, sans-serif" font-size="22">still on your work machine.</text>
+  <text x="104" y="480" fill="#F2CC60" font-family="'SFMono-Regular', Consolas, monospace" font-size="20">$ office door closes</text>
+  <text x="104" y="516" fill="#8B949E" font-family="'SFMono-Regular', Consolas, monospace" font-size="18">laptop: disconnected</text>
+
+  <text x="464" y="276" fill="#58A6FF" font-family="'SFMono-Regular', Consolas, monospace" font-size="18">02</text>
+  <text x="464" y="318" fill="white" font-family="'Segoe UI', Arial, sans-serif" font-size="32" font-weight="700">Work is not done yet</text>
+  <text x="464" y="360" fill="#C9D1D9" font-family="'Segoe UI', Arial, sans-serif" font-size="22">You still want the same shell,</text>
+  <text x="464" y="390" fill="#C9D1D9" font-family="'Segoe UI', Arial, sans-serif" font-size="22">same repo, same momentum.</text>
+  <rect x="464" y="456" width="272" height="90" rx="16" fill="#0A1626" stroke="rgba(255,255,255,0.10)"/>
+  <text x="484" y="490" fill="#7EE787" font-family="'SFMono-Regular', Consolas, monospace" font-size="18">$ claude</text>
+  <text x="484" y="522" fill="#DCE7F3" font-family="'SFMono-Regular', Consolas, monospace" font-size="17">continue fixing prod issue</text>
+
+  <text x="824" y="276" fill="#58A6FF" font-family="'SFMono-Regular', Consolas, monospace" font-size="18">03</text>
+  <text x="824" y="318" fill="white" font-family="'Segoe UI', Arial, sans-serif" font-size="32" font-weight="700">Run one command</text>
+  <text x="824" y="360" fill="#C9D1D9" font-family="'Segoe UI', Arial, sans-serif" font-size="22">BTO reconnects you to the office</text>
+  <text x="824" y="390" fill="#C9D1D9" font-family="'Segoe UI', Arial, sans-serif" font-size="22">machine so the work keeps going.</text>
+  <rect x="824" y="456" width="242" height="56" rx="18" fill="#2EA043"/>
+  <text x="850" y="492" fill="white" font-family="'SFMono-Regular', Consolas, monospace" font-size="22" font-weight="700">$ bto office-213</text>
+  <text x="824" y="552" fill="#8B949E" font-family="'SFMono-Regular', Consolas, monospace" font-size="18">same box, new location</text>
+</svg>
