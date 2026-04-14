@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="docs/images/github-hero.svg" alt="BTO hero banner" width="100%">
+  <img src="assets/github-hero.svg" alt="BTO hero banner" width="100%">
 </p>
 
 <h1 align="center">BTO (Back To Office)</h1>
@@ -23,19 +23,18 @@
 <p align="center">
   <a href="#install-in-30-seconds">Install</a> ·
   <a href="https://github.com/hbliu007/back-to-office/releases/latest">Downloads</a> ·
-  <a href="#why-people-choose-bto">Why BTO</a> ·
+  <a href="#your-first-connection">First Connection</a> ·
   <a href="#trust-and-safety">Trust &amp; Safety</a> ·
-  <a href="docs/README.md">Maintainer Docs</a> ·
   <a href="SECURITY.md">Security</a>
 </p>
 
-> If you only want to use BTO, everything you need is on this page. Engineering notes and internal docs are intentionally pushed into [Maintainer Docs](docs/README.md).
+> This GitHub repository is intentionally product-only. It is the public install surface for BTO, not the full development codebase.
 
-## What BTO Gives You
+## What BTO Is
 
 - One small CLI for reaching an office or lab machine over SSH from anywhere.
-- A focused tool for remote shell access, not a full mesh VPN or team admin platform.
-- Release binaries that install fast and stay understandable.
+- Built for people who need remote shell access, not a full mesh VPN or admin platform.
+- Designed to be understood in one screen and installed in one command.
 
 ## Install in 30 Seconds
 
@@ -59,11 +58,9 @@ Prefer a manual download? Use the release assets directly:
 | Linux x86_64 | `bto-vX.Y.Z-linux-x86_64.tar.gz` |
 | Linux ARM64 | `bto-vX.Y.Z-linux-arm64.tar.gz` |
 
-## Your First Successful Connection
+## Your First Connection
 
-This is the shortest path if you already have a relay and an office-side BTO setup.
-
-### 1. Install BTO on your laptop
+### 1. Install BTO
 
 ```console
 $ curl -fsSL https://raw.githubusercontent.com/hbliu007/back-to-office/main/install.sh | bash
@@ -84,16 +81,8 @@ $ bto office-213
 What happens next:
 
 - BTO resolves the target name or DID
-- `peerlinkd` is started if needed
+- `peerlinkd` starts if needed
 - BTO reuses the local bridge and launches SSH for you
-
-If you need the office-side bootstrap from scratch, jump to the advanced references in [Maintainer Docs](docs/README.md).
-
-## Who BTO Is For
-
-- Engineers with a workstation or GPU box in the office
-- Founders and small teams who want SSH access without changing company VPN
-- People who want one practical tool instead of a whole remote-access stack
 
 ## Why People Choose BTO
 
@@ -109,33 +98,18 @@ BTO wins when you want the smallest thing that gets you back into your office ma
 
 ## Trust and Safety
 
-BTO should feel simple, but the safety story should also be clear.
-
 - The canonical install path is GitHub Releases plus `install.sh`, not a private IP or ad-hoc file share.
 - The installer only fetches release assets and validates SHA256 checksums when available.
 - Basic installation does not require embedding tokens in `curl | sh` commands.
-- The relay is part of the transport path in relay mode, so this repo avoids absolute claims such as "the relay can never see traffic" unless that behavior is verified for the exact deployment.
+- The relay is part of the transport path in relay mode, so this repo avoids absolute claims that are hard to verify for every deployment.
 - Before production rollout, read [SECURITY.md](SECURITY.md) and review your own relay, logging, and credential policy.
 
-## Repository Layout
+## What This Repo Contains
 
-This repository is now intentionally organized for installers first:
-
-- `README.md`: product story, install path, trust boundary
+- `README.md`: the product story and install path
 - `install.sh`: the public installer
-- `Releases`: the binaries end users actually download
-- `docs/`: maintainer and engineering references
-- `src/`, `test/`, `scripts/`: implementation details for contributors
-
-If the public product surface and source surface are split into separate repositories later, this README can stay almost unchanged.
-
-## For Maintainers
-
-If you are here to build, test, debug, or ship BTO:
-
-- Start with [docs/README.md](docs/README.md)
-- Release through [scripts/build-release.sh](scripts/build-release.sh)
-- Use [SECURITY.md](SECURITY.md) as the pre-publish review checklist
+- `SECURITY.md`: publishing and trust guidance
+- `Releases`: the binaries users actually download
 
 ## License
 
