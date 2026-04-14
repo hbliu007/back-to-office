@@ -12,7 +12,6 @@ set -euo pipefail
 # ─── 配置 ────────────────────────────────────────────────────────
 
 REPO="hbliu007/back-to-office"
-BINARIES=("bto" "peerlinkd")
 DEFAULT_INSTALL_DIR="${HOME}/.local/bin"
 
 # ─── 颜色 ────────────────────────────────────────────────────────
@@ -69,7 +68,7 @@ detect_platform() {
     esac
 
     case "$(uname -m)" in
-        x86_64|amd64)   arch="x86_64" ;;
+        x86_64|amd64)   arch="amd64" ;;
         aarch64|arm64)  arch="arm64" ;;
         *)              fatal "不支持的架构: $(uname -m)" ;;
     esac
@@ -121,6 +120,25 @@ resolve_version() {
     info "目标版本: ${BOLD}${VERSION}${NC}"
 }
 
+asset_filename_for_platform() {
+    local version="$1" platform="$2"
+    echo "bto-${version}-${platform}.tar.gz"
+}
+
+checksum_filename() {
+    local version="$1"
+    local names=("checksums.sha256" "SHA256SUMS.txt")
+    local name
+    for name in "${names[@]}"; do
+        local url="https://github.com/${REPO}/releases/download/${version}/${name}"
+        if download "$url" "$tmpdir/$name" 2>/dev/null; then
+            echo "$name"
+            return 0
+        fi
+    done
+    return 1
+}
+
 # ─── 安装目录 ────────────────────────────────────────────────────
 
 resolve_install_dir() {
@@ -157,7 +175,8 @@ main() {
     resolve_install_dir
 
     # 构造下载 URL
-    local filename="bto-${VERSION}-${platform}.tar.gz"
+    local filename
+    filename=$(asset_filename_for_platform "$VERSION" "$platform")
     local url="https://github.com/${REPO}/releases/download/${VERSION}/${filename}"
 
     # 创建临时目录
@@ -180,11 +199,11 @@ main() {
     }
 
     # 下载并验证 SHA256 校验和
-    local checksum_url="https://github.com/${REPO}/releases/download/${VERSION}/checksums.sha256"
-    if download "${checksum_url}" "${tmpdir}/checksums.sha256" 2>/dev/null; then
+    local checksum_name=""
+    if checksum_name=$(checksum_filename "$VERSION"); then
         info "验证 SHA256 校验和..."
         local expected
-        expected=$(grep "${filename}" "${tmpdir}/checksums.sha256" | awk '{print $1}')
+        expected=$(grep "${filename}" "${tmpdir}/${checksum_name}" | awk '{print $1}')
         if [[ -n "$expected" ]]; then
             local actual
             if command -v sha256sum &>/dev/null; then
@@ -197,7 +216,7 @@ main() {
             fi
             ok "SHA256 校验通过"
         else
-            warn "checksums.sha256 中未找到 ${filename}，跳过校验"
+            warn "${checksum_name} 中未找到 ${filename}，跳过校验"
         fi
     else
         warn "未找到校验和文件，跳过 SHA256 验证"
@@ -209,10 +228,11 @@ main() {
 
     # 安装
     mkdir -p "$INSTALL_DIR"
+    local installed=0
     local binary
-    for binary in "${BINARIES[@]}"; do
+    for binary in bto peerlinkd p2p-tunnel-server; do
         if [[ ! -f "${tmpdir}/${binary}" ]]; then
-            fatal "安装包缺少 ${binary}，请检查发布内容: ${url}"
+            continue
         fi
         if [[ -w "$INSTALL_DIR" ]]; then
             cp "${tmpdir}/${binary}" "${INSTALL_DIR}/${binary}"
@@ -222,7 +242,12 @@ main() {
             sudo cp "${tmpdir}/${binary}" "${INSTALL_DIR}/${binary}"
             sudo chmod +x "${INSTALL_DIR}/${binary}"
         fi
+        installed=1
     done
+
+    if [[ "$installed" -ne 1 ]]; then
+        fatal "安装包中未找到可安装二进制，请检查发布内容: ${url}"
+    fi
 
     # 验证
     if "${INSTALL_DIR}/bto" --version &>/dev/null; then
@@ -250,6 +275,10 @@ main() {
     # 打印使用指南
     echo ""
     printf "${BOLD}${GREEN}  快速开始${NC}\n"
+    echo ""
+    echo "  说明:"
+    echo "     GitHub 只负责分发安装包，不发放用户 token。"
+    echo "     如你的 relay / 控制平面需要 token，请从你的 BTO 官网或自托管控制台获取。"
     echo ""
     echo "  1. 添加远端设备:"
     echo "     bto add office-213 --did office-213 --relay relay.example.com:9700"

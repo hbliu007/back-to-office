@@ -5,7 +5,7 @@
 <h1 align="center">BTO (Back To Office)</h1>
 
 <p align="center">
-  <strong>Leave the office. Keep working on the same machine, with the same coding flow.</strong>
+  <strong>Know exactly what this is. Install it fast. Get back to your office machine and keep working.</strong>
 </p>
 
 <p align="center">
@@ -15,21 +15,50 @@
   <a href="https://github.com/hbliu007/back-to-office/releases/latest">
     <img src="https://img.shields.io/badge/downloads-GitHub%20Releases-1f6feb?style=flat-square&logo=github" alt="Downloads">
   </a>
-  <img src="https://img.shields.io/badge/install-bto%20%2B%20peerlinkd-2ea043?style=flat-square" alt="Installs bto and peerlinkd">
+  <img src="https://img.shields.io/badge/install-release%20binaries-2ea043?style=flat-square" alt="Installs release binaries">
   <img src="https://img.shields.io/badge/platform-macOS%20%7C%20Linux-0a3069?style=flat-square" alt="macOS and Linux">
   <img src="https://img.shields.io/badge/license-MIT-f2cc60?style=flat-square" alt="MIT license">
 </p>
 
-<p align="center">
-  <a href="#install-in-30-seconds">Install</a> ·
-  <a href="https://github.com/hbliu007/back-to-office/releases/latest">Downloads</a> ·
-  <a href="#why-this-hits-home">Why It Hits Home</a> ·
-  <a href="#your-first-connection">First Connection</a> ·
-  <a href="#trust-and-safety">Trust &amp; Safety</a> ·
-  <a href="SECURITY.md">Security</a>
-</p>
+<p align="center"><a href="#install-in-30-seconds"><strong>Install Now</strong></a> · <a href="https://github.com/hbliu007/back-to-office/releases/latest">Downloads</a> · <a href="SECURITY.md">Security</a></p>
 
 > This GitHub repository is intentionally product-only. It is the public install surface for BTO, not the full development codebase.
+
+## What This Is
+
+BTO is a CLI for one very specific job:
+
+**remote SSH access to your office computer so you can continue the same work session from somewhere else.**
+
+If your code, logs, GPU, dataset, or AI coding workflow live on the office machine, BTO is the tool that gets you back onto that machine quickly.
+
+## What You Get
+
+- You leave the office but keep working on the same box
+- You reopen the same repository and keep the same debugging momentum
+- You keep Claude Code, Codex, or plain terminal work moving
+- You avoid turning this into a whole VPN project
+
+## Install in 30 Seconds
+
+```console
+$ curl -fsSL https://raw.githubusercontent.com/hbliu007/back-to-office/main/install.sh | bash
+```
+
+This installer is designed to match the latest GitHub Release assets.
+
+- It downloads the latest release from GitHub Releases
+- It installs `bto` and any companion binary bundled in that release
+- It verifies SHA256 when a checksum file is published
+- It defaults to `~/.local/bin` unless `/usr/local/bin` is writable
+
+As of **April 14, 2026**, I verified that the latest public release page exposes macOS ARM64 and Linux AMD64 assets, and updated the installer to match the current asset naming and checksum naming used there.
+
+## Before You Install
+
+- GitHub distributes the binary, but **GitHub does not issue user tokens**
+- If your relay or hosted control plane requires a token, get it from your **official BTO control plane / website / self-hosted admin**, not from this repository
+- Basic installation should never require putting your personal token into a public GitHub command
 
 ## Why This Hits Home
 
@@ -56,26 +85,11 @@ Not "networking infrastructure". Not "a full platform". Just getting you back on
 - Built for people who need remote shell access, not a full mesh VPN or admin platform.
 - Designed to be understood in one screen and installed in one command.
 
-## Install in 30 Seconds
-
-```console
-$ curl -fsSL https://raw.githubusercontent.com/hbliu007/back-to-office/main/install.sh | bash
-```
-
-What the installer does:
-
-- Downloads the latest release from GitHub Releases
-- Installs both `bto` and `peerlinkd`
-- Verifies `checksums.sha256` when the release provides it
-- Defaults to `~/.local/bin` unless `/usr/local/bin` is writable
-
-Prefer a manual download? Use the release assets directly:
-
 | Platform | Asset |
 |:--|:--|
 | macOS Apple Silicon | `bto-vX.Y.Z-darwin-arm64.tar.gz` |
-| macOS Intel | `bto-vX.Y.Z-darwin-x86_64.tar.gz` |
-| Linux x86_64 | `bto-vX.Y.Z-linux-x86_64.tar.gz` |
+| macOS Intel | `bto-vX.Y.Z-darwin-amd64.tar.gz` or `darwin-x86_64` |
+| Linux x86_64 | `bto-vX.Y.Z-linux-amd64.tar.gz` |
 | Linux ARM64 | `bto-vX.Y.Z-linux-arm64.tar.gz` |
 
 ## Your First Connection
@@ -137,6 +151,7 @@ That is why this repository now leads with a visual story and a single install c
 - The canonical install path is GitHub Releases plus `install.sh`, not a private IP or ad-hoc file share.
 - The installer only fetches release assets and validates SHA256 checksums when available.
 - Basic installation does not require embedding tokens in `curl | sh` commands.
+- Tokens, when required by your relay setup, should come from your official BTO control plane or self-hosted admin, not from GitHub.
 - The relay is part of the transport path in relay mode, so this repo avoids absolute claims that are hard to verify for every deployment.
 - Before production rollout, read [SECURITY.md](SECURITY.md) and review your own relay, logging, and credential policy.
 
