@@ -20,27 +20,30 @@
   <img src="https://img.shields.io/badge/license-MIT-f2cc60?style=flat-square" alt="MIT license">
 </p>
 
-<p align="center"><a href="#install-in-30-seconds"><strong>Install Now</strong></a> · <a href="https://bto.asia/register"><strong>Create Account</strong></a> · <a href="https://bto.asia/dashboard">Dashboard</a> · <a href="SECURITY.md">Security</a></p>
+<p align="center"><a href="https://bto.asia/register"><strong>Create Account</strong></a> · <a href="#start-here"><strong>Install</strong></a> · <a href="https://bto.asia/dashboard"><strong>Open Dashboard</strong></a> · <a href="SECURITY.md">Security</a></p>
 
 > This GitHub repository is intentionally product-only. It is the public install surface for BTO, not the full development codebase.
 
 ## What This Is
 
-BTO is a CLI for one very specific job:
+BTO is the shortest path back to your office computer.
 
-**remote SSH access to your office computer through the official BTO service, so you can continue the same work session from somewhere else.**
+It is a CLI that lets you:
 
-If your code, logs, GPU, dataset, or AI coding workflow live on the office machine, BTO is the tool that gets you back onto that machine quickly.
+- register on the official BTO service
+- install one small client from GitHub
+- finish device setup in the BTO dashboard
+- SSH back into your office machine and keep working
 
-## What You Get
+If your code, logs, GPU, dataset, or Claude Code session are still on the office computer, BTO is built for that exact moment.
 
-- You leave the office but keep working on the same box
-- You reopen the same repository and keep the same debugging momentum
-- You keep Claude Code, Codex, or plain terminal work moving
-- You avoid turning this into a whole VPN project
-- You use the official BTO account and device flow instead of manual network setup
+## Start Here
 
-## Install in 30 Seconds
+### 1. Create your account
+
+Open [bto.asia/register](https://bto.asia/register).
+
+### 2. Install BTO
 
 ```console
 $ curl -fsSL https://raw.githubusercontent.com/hbliu007/back-to-office/main/install.sh | bash
@@ -53,7 +56,30 @@ This installer is designed to match the latest GitHub Release assets.
 - It verifies SHA256 when a checksum file is published
 - It defaults to `~/.local/bin` unless `/usr/local/bin` is writable
 
-As of **April 14, 2026**, I verified that the latest public release page exposes macOS ARM64 and Linux AMD64 assets, and updated the installer to match the current asset naming and checksum naming used there.
+### 3. Open your dashboard and copy the setup info
+
+Open [bto.asia/dashboard](https://bto.asia/dashboard), then follow the official onboarding flow there:
+
+- sign in
+- get your token
+- register or activate your office device
+- finish the setup command shown in the dashboard
+
+### 4. Connect back to the office machine
+
+```console
+$ bto office-213
+```
+
+That is the whole user journey: **register, install, configure, connect**.
+
+## What You Get
+
+- You leave the office but keep working on the same box
+- You reopen the same repository and keep the same debugging momentum
+- You keep Claude Code, Codex, or plain terminal work moving
+- You avoid turning this into a whole VPN project
+- You use the official BTO account and dashboard flow instead of manual network setup
 
 ## Official Service Flow
 
@@ -62,6 +88,16 @@ As of **April 14, 2026**, I verified that the latest public release page exposes
 3. Open your console at [bto.asia/dashboard](https://bto.asia/dashboard)
 4. Get your token / device setup from the official BTO service
 5. Connect back to your office machine and continue working
+
+## Verified Today
+
+As of **April 14, 2026**:
+
+- The GitHub install path was verified on macOS Apple Silicon with `v1.1.0`
+- The installer downloaded the current release asset, passed SHA256 verification, installed successfully, and exited with code `0`
+- The official onboarding links are:
+  [bto.asia/register](https://bto.asia/register) and [bto.asia/dashboard](https://bto.asia/dashboard)
+- At the time of this check, those two pages were returning `HTTP 525`, so I can honestly verify the install flow end-to-end up to the dashboard handoff, but not the hosted registration flow itself until the site is back up
 
 ## Before You Install
 
@@ -104,39 +140,12 @@ Not "networking infrastructure". Not "a full platform". Just getting you back on
 
 ## Your First Connection
 
-### 1. Install BTO
+What happens after the dashboard setup:
 
-```console
-$ curl -fsSL https://raw.githubusercontent.com/hbliu007/back-to-office/main/install.sh | bash
-```
-
-### 2. Create your account and open your dashboard
-
-```console
-$ open https://bto.asia/register
-$ open https://bto.asia/dashboard
-```
-
-### 3. Follow the official onboarding flow
-
-- sign in
-- get your token
-- register or open your office device
-- finish the setup shown in the dashboard
-
-### 4. Connect like it is on your desk
-
-```console
-$ bto office-213
-```
-
-What happens next:
-
-- BTO uses your configured official BTO account / device context
+- BTO uses your configured official BTO account and device context
 - `peerlinkd` starts if needed
 - BTO reuses the local bridge and launches SSH for you
-
-If your mental model is "I want to get back into the office box and keep coding", you're using BTO the right way.
+- your office machine feels like it is back under your fingertips
 
 ## The One-Line Pitch
 

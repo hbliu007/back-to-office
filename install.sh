@@ -182,7 +182,7 @@ main() {
     # 创建临时目录
     local tmpdir
     tmpdir=$(mktemp -d)
-    trap 'rm -rf "$tmpdir"' EXIT
+    trap 'rm -rf "${tmpdir:-}"' EXIT
 
     # 下载
     info "下载 ${filename}..."
@@ -286,7 +286,9 @@ main() {
     echo "  2. 打开控制台，获取 token / 设备开通信息:"
     echo "     https://bto.asia/dashboard"
     echo ""
-    echo "  3. 按控制台引导完成设备接入后连接:"
+    echo "  3. 在控制台完成配置，复制你的设备接入命令。"
+    echo ""
+    echo "  4. 完成设备接入后连接:"
     echo "     bto office-213"
     echo ""
     echo "  更多帮助: bto help"
