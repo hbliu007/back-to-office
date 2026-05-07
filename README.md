@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="docs/images/github-hero.svg" alt="BTO — Back To Office" width="100%">
+  <img src="assets/github-hero.svg" alt="BTO — Back To Office" width="100%">
 </p>
 
 <p align="center">
